@@ -145,8 +145,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const newAudioFilename = audioFilenameWithoutExt + ".mp3";
           const newAudioPath = path.join(process.cwd(), "uploads", newAudioFilename);
 
-          // Use FFmpeg to extract audio
-          execSync(`ffmpeg -i "${audioFilePath}" -q:a 0 -map a "${newAudioPath}" -y -loglevel quiet`);
+          // Use FFmpeg to extract audio (q:a 5 = good quality, fast conversion)
+          execSync(`ffmpeg -i "${audioFilePath}" -q:a 5 -map a "${newAudioPath}" -y -loglevel quiet`);
 
           // Delete the original video file
           await fs.unlink(audioFilePath);
