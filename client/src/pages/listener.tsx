@@ -5,13 +5,18 @@ import { Card } from "@/components/ui/card";
 import { LiveIndicator } from "@/components/live-indicator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ChatWidget } from "@/components/chat-widget";
+import { AnimatedBackground } from "@/components/animated-background";
+import { FloatingParticles } from "@/components/floating-particles";
+import { AudioVisualizer } from "@/components/audio-visualizer";
 import { Play, Pause, Volume2, VolumeX, Radio, Users, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { motion, useReducedMotion } from "framer-motion";
 import type { ChatMessage } from "@shared/schema";
 
 export default function ListenerPage() {
   const { radioState, tracks, isConnected, ws } = useWebSocket();
+  const shouldReduceMotion = useReducedMotion();
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState([75]);
   const [isMuted, setIsMuted] = useState(false);
@@ -170,8 +175,11 @@ export default function ListenerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background relative">
-      <div className="absolute top-4 right-4 z-10 flex gap-2">
+    <div className="min-h-screen relative overflow-hidden">
+      <AnimatedBackground />
+      <FloatingParticles />
+      
+      <div className="absolute top-4 right-4 z-50 flex gap-2">
         {!usernameEntered && (
           <div className="flex gap-2">
             <Input
@@ -180,7 +188,7 @@ export default function ListenerPage() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSetUsername()}
-              className="h-9"
+              className="h-9 bg-card/90 backdrop-blur-md"
               data-testid="input-username"
             />
             <Button size="sm" onClick={handleSetUsername} data-testid="button-set-username">
@@ -195,7 +203,7 @@ export default function ListenerPage() {
         <Button
           variant="outline"
           size="sm"
-          className="absolute top-4 left-4 z-10"
+          className="absolute top-4 left-4 z-50 bg-card/90 backdrop-blur-md"
           onClick={handleChatOpen}
           data-testid="button-open-chat"
         >
@@ -204,24 +212,55 @@ export default function ListenerPage() {
         </Button>
       )}
 
-      <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12">
-        <div className="w-full max-w-3xl mx-auto space-y-8">
-          <div className="text-center space-y-6">
-            <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-primary/10 mb-4 shadow-sm">
-              <Radio className="w-14 h-14 text-primary" />
-            </div>
+      <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12 relative z-10">
+        <motion.div
+          initial={shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
+          className="w-full max-w-4xl mx-auto space-y-12"
+        >
+          <div className="text-center space-y-8">
+            <motion.div
+              className="inline-flex items-center justify-center w-32 h-32 rounded-full mb-4 relative"
+              style={{
+                background: "linear-gradient(135deg, hsla(195, 100%, 50%, 0.3), hsla(270, 60%, 65%, 0.3))",
+                backdropFilter: "blur(20px)",
+                boxShadow: "0 0 60px hsla(195, 100%, 50%, 0.3)",
+              }}
+              animate={shouldReduceMotion ? {} : {
+                boxShadow: [
+                  "0 0 60px hsla(195, 100%, 50%, 0.3)",
+                  "0 0 80px hsla(270, 60%, 65%, 0.4)",
+                  "0 0 60px hsla(195, 100%, 50%, 0.3)",
+                ],
+              }}
+              transition={{ duration: 4, repeat: Infinity }}
+            >
+              <Radio className="w-16 h-16 text-foreground drop-shadow-lg" />
+            </motion.div>
             
-            <div className="space-y-2">
-              <h1 className="text-5xl font-semibold tracking-tight" data-testid="text-station-name">
+            <div className="space-y-3">
+              <h1 
+                className="text-6xl font-semibold tracking-tight drop-shadow-lg" 
+                style={{ color: "rgba(255, 255, 255, 0.95)", textShadow: "0 2px 20px rgba(0, 0, 0, 0.5), 0 0 40px rgba(59, 130, 246, 0.3)" }}
+                data-testid="text-station-name"
+              >
                 Radio New Power
               </h1>
-              <p className="text-lg text-muted-foreground">
+              <p 
+                className="text-xl" 
+                style={{ color: "rgba(255, 255, 255, 0.8)", textShadow: "0 1px 10px rgba(0, 0, 0, 0.5)" }}
+              >
                 Your 24/7 streaming radio station
               </p>
             </div>
+
+            <AudioVisualizer isPlaying={isPlaying} shouldReduceMotion={shouldReduceMotion || false} />
           </div>
 
-          <Card className="p-8 space-y-6 shadow-md">
+          <Card
+            className="p-10 space-y-8 relative overflow-hidden border-white/20 bg-card/80 backdrop-blur-xl shadow-2xl"
+          >
             <div className="flex items-center justify-between flex-wrap gap-2">
               <LiveIndicator isLive={radioState.isLive} />
               <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-listener-count">
@@ -312,7 +351,7 @@ export default function ListenerPage() {
               Synchronized playback • All listeners hear the same audio
             </p>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       <ChatWidget
