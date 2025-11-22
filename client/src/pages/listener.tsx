@@ -13,7 +13,7 @@ export default function ListenerPage() {
   const [volume, setVolume] = useState([75]);
   const [isMuted, setIsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const lastSyncRef = useRef<number>(0);
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentTrack = tracks.find((t) => t.id === radioState.currentTrackId);
 
@@ -23,45 +23,87 @@ export default function ListenerPage() {
       audioRef.current.preload = "auto";
     }
 
-    const audio = audioRef.current;
-    audio.volume = isMuted ? 0 : volume[0] / 100;
-
-    if (currentTrack && isPlaying) {
-      const timeDiff = Math.abs(audio.currentTime - radioState.playbackPosition);
-      
-      if (audio.src !== currentTrack.fileUrl) {
-        audio.src = currentTrack.fileUrl;
-        audio.currentTime = radioState.playbackPosition;
-        audio.play().catch((error) => {
-          console.error("Audio playback error:", error);
-          setIsPlaying(false);
-        });
-      } else if (timeDiff > 2) {
-        audio.currentTime = radioState.playbackPosition;
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
       }
-    } else if (!isPlaying && audio) {
-      audio.pause();
-    }
-  }, [isPlaying, currentTrack, radioState.currentTrackId, radioState.playbackPosition]);
+    };
+  }, []);
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
-    }
+    if (!audioRef.current) return;
+    audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
   }, [volume, isMuted]);
 
   useEffect(() => {
     if (!isConnected) {
       setIsPlaying(false);
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
     }
   }, [isConnected]);
 
+  useEffect(() => {
+    if (!audioRef.current || !currentTrack || !isPlaying) {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
+      if (audioRef.current && !isPlaying) {
+        audioRef.current.pause();
+      }
+      return;
+    }
+
+    const audio = audioRef.current;
+
+    if (audio.src !== currentTrack.fileUrl) {
+      audio.src = currentTrack.fileUrl;
+      audio.currentTime = radioState.playbackPosition;
+      audio.play().catch((error) => {
+        console.error("Audio playback error:", error);
+        setIsPlaying(false);
+      });
+    }
+
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+    }
+
+    syncIntervalRef.current = setInterval(() => {
+      if (!audio.paused && radioState.currentTrackId === currentTrack.id) {
+        const serverPosition = radioState.playbackPosition;
+        const clientPosition = audio.currentTime;
+        const drift = Math.abs(serverPosition - clientPosition);
+
+        if (drift > 0.5) {
+          console.log(`Syncing playback: server=${serverPosition}s, client=${clientPosition}s, drift=${drift.toFixed(2)}s`);
+          audio.currentTime = serverPosition;
+        }
+      }
+    }, 2000);
+
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
+    };
+  }, [isPlaying, currentTrack, radioState.currentTrackId, radioState.playbackPosition]);
+
   const togglePlay = () => {
-    if (!isConnected) return;
+    if (!isConnected || !currentTrack) return;
     
-    if (!isPlaying && currentTrack) {
+    if (!isPlaying) {
       if (audioRef.current) {
         audioRef.current.currentTime = radioState.playbackPosition;
+        audioRef.current.play().catch((error) => {
+          console.error("Audio playback error:", error);
+          return;
+        });
+      }
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
       }
     }
     

@@ -42,6 +42,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={ListenerPage} />
+      <Route path="/admin" component={AdminLoginPage} />
       <Route path="/admin/login" component={AdminLoginPage} />
       <Route path="/admin/dashboard">
         <AdminLayout>
