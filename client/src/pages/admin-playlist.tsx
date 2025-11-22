@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,51 +11,86 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Upload, Trash2, Music, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { AudioTrack } from "@shared/schema";
 
 export default function AdminPlaylist() {
   const { toast } = useToast();
-  const [tracks, setTracks] = useState<AudioTrack[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
+  
+  const { data: tracks, isLoading } = useQuery<AudioTrack[]>({
+    queryKey: ["/api/tracks"],
+  });
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("audio", file);
+      formData.append("title", file.name.replace(/\.[^/.]+$/, ""));
+      formData.append("duration", "180");
 
-    setIsUploading(true);
-
-    try {
-      toast({
-        title: "Upload started",
-        description: `Uploading ${files.length} file(s)...`,
+      const response = await fetch("/api/tracks", {
+        method: "POST",
+        body: formData,
       });
-    } catch (error) {
+
+      if (!response.ok) {
+        throw new Error("Upload failed");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tracks"] });
+      toast({
+        title: "Upload successful",
+        description: "Audio track has been added to the playlist",
+      });
+    },
+    onError: () => {
       toast({
         title: "Upload failed",
-        description: "Failed to upload audio files",
+        description: "Failed to upload audio file",
         variant: "destructive",
       });
-    } finally {
-      setIsUploading(false);
-    }
-  };
+    },
+  });
 
-  const handleDeleteTrack = async (trackId: string) => {
-    try {
-      setTracks(tracks.filter((t) => t.id !== trackId));
+  const deleteMutation = useMutation({
+    mutationFn: async (trackId: string) => {
+      await apiRequest("DELETE", `/api/tracks/${trackId}`, undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tracks"] });
       toast({
         title: "Track deleted",
         description: "Audio track has been removed from the playlist",
       });
-    } catch (error) {
+    },
+    onError: () => {
       toast({
         title: "Delete failed",
         description: "Failed to delete track",
         variant: "destructive",
       });
+    },
+  });
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of Array.from(files)) {
+      uploadMutation.mutate(file);
     }
+
+    e.target.value = "";
+  };
+
+  const handleDeleteTrack = async (trackId: string) => {
+    deleteMutation.mutate(trackId);
   };
 
   const formatDuration = (seconds: number) => {
@@ -104,23 +139,34 @@ export default function AdminPlaylist() {
                 accept="audio/*"
                 multiple
                 onChange={handleFileUpload}
-                disabled={isUploading}
+                disabled={uploadMutation.isPending}
                 data-testid="input-file-upload"
               />
             </Label>
+            {uploadMutation.isPending && (
+              <p className="text-sm text-muted-foreground text-center">
+                Uploading...
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Playlist ({tracks.length} tracks)</CardTitle>
+          <CardTitle>Playlist ({tracks?.length || 0} tracks)</CardTitle>
           <CardDescription>
             Manage the order and content of your playlist
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {tracks.length === 0 ? (
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : !tracks || tracks.length === 0 ? (
             <div className="text-center py-12">
               <Music className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-semibold mb-2">No tracks uploaded</h3>
@@ -157,6 +203,7 @@ export default function AdminPlaylist() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDeleteTrack(track.id)}
+                        disabled={deleteMutation.isPending}
                         data-testid={`button-delete-${track.id}`}
                       >
                         <Trash2 className="w-4 h-4 text-destructive" />

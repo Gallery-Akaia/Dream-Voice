@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Radio, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function AdminLoginPage() {
   const [, setLocation] = useLocation();
@@ -20,6 +21,13 @@ export default function AdminLoginPage() {
     setIsLoading(true);
 
     try {
+      await apiRequest("POST", "/api/auth/login", { username, password });
+      
+      toast({
+        title: "Login successful",
+        description: "Welcome to Radio New Power admin panel",
+      });
+      
       setLocation("/admin/dashboard");
     } catch (error) {
       toast({

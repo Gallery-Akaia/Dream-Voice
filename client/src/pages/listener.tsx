@@ -1,20 +1,70 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Card } from "@/components/ui/card";
 import { LiveIndicator } from "@/components/live-indicator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Play, Pause, Volume2, VolumeX, Radio, Users } from "lucide-react";
+import { useWebSocket } from "@/hooks/use-websocket";
 
 export default function ListenerPage() {
+  const { radioState, tracks, isConnected } = useWebSocket();
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState([75]);
   const [isMuted, setIsMuted] = useState(false);
-  const [isLive] = useState(false);
-  const [listenerCount] = useState(0);
-  const [currentTrack] = useState<{ title: string; artist: string } | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastSyncRef = useRef<number>(0);
+
+  const currentTrack = tracks.find((t) => t.id === radioState.currentTrackId);
+
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.preload = "auto";
+    }
+
+    const audio = audioRef.current;
+    audio.volume = isMuted ? 0 : volume[0] / 100;
+
+    if (currentTrack && isPlaying) {
+      const timeDiff = Math.abs(audio.currentTime - radioState.playbackPosition);
+      
+      if (audio.src !== currentTrack.fileUrl) {
+        audio.src = currentTrack.fileUrl;
+        audio.currentTime = radioState.playbackPosition;
+        audio.play().catch((error) => {
+          console.error("Audio playback error:", error);
+          setIsPlaying(false);
+        });
+      } else if (timeDiff > 2) {
+        audio.currentTime = radioState.playbackPosition;
+      }
+    } else if (!isPlaying && audio) {
+      audio.pause();
+    }
+  }, [isPlaying, currentTrack, radioState.currentTrackId, radioState.playbackPosition]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
+    }
+  }, [volume, isMuted]);
+
+  useEffect(() => {
+    if (!isConnected) {
+      setIsPlaying(false);
+    }
+  }, [isConnected]);
 
   const togglePlay = () => {
+    if (!isConnected) return;
+    
+    if (!isPlaying && currentTrack) {
+      if (audioRef.current) {
+        audioRef.current.currentTime = radioState.playbackPosition;
+      }
+    }
+    
     setIsPlaying(!isPlaying);
   };
 
@@ -46,26 +96,34 @@ export default function ListenerPage() {
           </div>
 
           <Card className="p-8 space-y-6">
-            <div className="flex items-center justify-between">
-              <LiveIndicator isLive={isLive} />
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <LiveIndicator isLive={radioState.isLive} />
               <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-listener-count">
                 <Users className="w-4 h-4" />
-                <span>{listenerCount} listeners</span>
+                <span>{radioState.listenerCount} listeners</span>
               </div>
             </div>
 
             {currentTrack ? (
               <div className="text-center space-y-1" data-testid="div-current-track">
                 <h2 className="text-2xl font-semibold">{currentTrack.title}</h2>
-                <p className="text-lg text-muted-foreground">{currentTrack.artist}</p>
+                <p className="text-lg text-muted-foreground">
+                  {currentTrack.artist || "Unknown Artist"}
+                </p>
               </div>
             ) : (
               <div className="text-center space-y-1">
                 <h2 className="text-2xl font-semibold text-muted-foreground">
-                  {isPlaying ? "Connecting..." : "Ready to play"}
+                  {isConnected 
+                    ? (tracks.length > 0 ? "Ready to play" : "No tracks available") 
+                    : "Connecting to server..."}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Press play to start listening
+                  {isConnected && tracks.length > 0
+                    ? "Press play to start listening" 
+                    : isConnected 
+                      ? "Admin needs to upload audio tracks"
+                      : "Please wait..."}
                 </p>
               </div>
             )}
@@ -76,6 +134,7 @@ export default function ListenerPage() {
                 variant="default"
                 className="h-20 w-20 rounded-full"
                 onClick={togglePlay}
+                disabled={!isConnected || tracks.length === 0}
                 data-testid="button-play-pause"
               >
                 {isPlaying ? (
@@ -115,6 +174,12 @@ export default function ListenerPage() {
                 />
               </div>
             </div>
+
+            {!isConnected && (
+              <div className="text-center text-sm text-destructive">
+                Connection lost. Trying to reconnect...
+              </div>
+            )}
           </Card>
 
           <div className="text-center">

@@ -1,9 +1,11 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
 import path from "path";
 import bcrypt from "bcrypt";
+import { parseFile } from "music-metadata";
 import { storage } from "./storage";
 import { insertAudioTrackSchema, insertUserSchema } from "@shared/schema";
 import type { RadioState } from "@shared/schema";
@@ -43,6 +45,18 @@ function broadcastToClients(data: any) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+  const existingAdmin = await storage.getUserByUsername("admin");
+  if (!existingAdmin) {
+    const hashedPassword = await bcrypt.hash("admin123", 10);
+    await storage.createUser({
+      username: "admin",
+      password: hashedPassword,
+    });
+    console.log("Default admin user created (username: admin, password: admin123)");
+  }
+
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { username, password } = req.body;
@@ -116,15 +130,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const { title, artist, duration } = req.body;
+      let metadata;
+      let duration = 0;
+      let title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
+      let artist = req.body.artist || null;
 
-      const track = await storage.createTrack({
-        title: title || req.file.originalname,
-        artist: artist || null,
-        duration: parseInt(duration) || 0,
+      try {
+        metadata = await parseFile(req.file.path);
+        if (metadata.format.duration) {
+          duration = Math.floor(metadata.format.duration);
+        }
+        if (metadata.common.title) {
+          title = metadata.common.title;
+        }
+        if (metadata.common.artist) {
+          artist = metadata.common.artist;
+        }
+      } catch (metadataError) {
+        console.error("Failed to extract metadata:", metadataError);
+        duration = parseInt(req.body.duration) || 180;
+      }
+
+      if (duration === 0) {
+        const fs = await import("fs/promises");
+        await fs.unlink(req.file.path);
+        return res.status(400).json({ error: "Invalid audio file: duration cannot be determined" });
+      }
+
+      const trackData = insertAudioTrackSchema.parse({
+        title,
+        artist,
+        duration,
         fileUrl: `/uploads/${req.file.filename}`,
         order: (await storage.getAllTracks()).length,
       });
+
+      const track = await storage.createTrack(trackData);
 
       broadcastToClients({
         type: "playlist_updated",
@@ -133,12 +174,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(track);
     } catch (error) {
+      console.error("Upload error:", error);
       res.status(500).json({ error: "Failed to upload track" });
     }
   });
 
   app.delete("/api/tracks/:id", async (req, res) => {
     try {
+      const track = await storage.getTrack(req.params.id);
+      if (track) {
+        const fs = await import("fs/promises");
+        const fileName = track.fileUrl.replace("/uploads/", "");
+        const filePath = path.join(process.cwd(), "uploads", fileName);
+        try {
+          await fs.unlink(filePath);
+        } catch (fileError) {
+          console.error("Failed to delete file:", fileError);
+        }
+      }
+      
       await storage.deleteTrack(req.params.id);
       
       broadcastToClients({
@@ -185,17 +239,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
-  wss.on("connection", (ws) => {
+  wss.on("connection", async (ws) => {
     connectedClients.add(ws);
     
     const currentState = storage.getRadioState();
     currentState.listenerCount = connectedClients.size;
     storage.updateRadioState({ listenerCount: connectedClients.size });
 
+    const tracks = await storage.getAllTracks();
     ws.send(JSON.stringify({
       type: "initial_state",
       state: currentState,
-      tracks: storage.getAllTracks(),
+      tracks: tracks,
     }));
 
     broadcastToClients({

@@ -1,45 +1,97 @@
-import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { LiveIndicator } from "@/components/live-indicator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Mic, Radio, Users, Volume2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { RadioState } from "@shared/schema";
 
 export default function AdminLive() {
   const { toast } = useToast();
-  const [isLive, setIsLive] = useState(false);
-  const [backgroundVolume, setBackgroundVolume] = useState([30]);
-  const [micLevel] = useState(0);
-  const [listenerCount] = useState(0);
+
+  const { data: radioState, isLoading } = useQuery<RadioState>({
+    queryKey: ["/api/radio/state"],
+    refetchInterval: 3000,
+  });
+
+  const updateLiveMutation = useMutation({
+    mutationFn: async (data: { isLive?: boolean; backgroundVolume?: number }) => {
+      return await apiRequest("POST", "/api/radio/live", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/radio/state"] });
+    },
+  });
 
   const handleGoLive = () => {
-    if (isLive) {
-      setIsLive(false);
-      toast({
-        title: "Broadcast ended",
-        description: "You are no longer live. Automated playback resumed.",
-      });
-    } else {
-      setIsLive(true);
-      toast({
-        title: "You're live!",
-        description: "Broadcasting to all listeners now.",
-      });
-    }
+    const newLiveState = !radioState?.isLive;
+    
+    updateLiveMutation.mutate(
+      { isLive: newLiveState },
+      {
+        onSuccess: () => {
+          toast({
+            title: newLiveState ? "You're live!" : "Broadcast ended",
+            description: newLiveState
+              ? "Broadcasting to all listeners now."
+              : "Automated playback resumed.",
+          });
+        },
+      }
+    );
+  };
+
+  const handleVolumeChange = (value: number[]) => {
+    updateLiveMutation.mutate({ backgroundVolume: value[0] });
   };
 
   const handleEmergencyStop = () => {
-    setIsLive(false);
-    toast({
-      title: "Emergency stop activated",
-      description: "Live broadcast stopped immediately.",
-      variant: "destructive",
-    });
+    updateLiveMutation.mutate(
+      { isLive: false },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Emergency stop activated",
+            description: "Live broadcast stopped immediately.",
+            variant: "destructive",
+          });
+        },
+      }
+    );
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Live Controls</h1>
+          <p className="text-muted-foreground">Broadcast live to your listeners</p>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardContent className="pt-6">
+              <Skeleton className="h-40 w-full" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <Skeleton className="h-40 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const isLive = radioState?.isLive || false;
+  const backgroundVolume = radioState?.backgroundVolume || 30;
+  const listenerCount = radioState?.listenerCount || 0;
 
   return (
     <div className="space-y-6">
@@ -81,6 +133,7 @@ export default function AdminLive() {
               variant={isLive ? "destructive" : "default"}
               className="w-full"
               onClick={handleGoLive}
+              disabled={updateLiveMutation.isPending}
               data-testid="button-go-live"
             >
               {isLive ? (
@@ -102,6 +155,7 @@ export default function AdminLive() {
                 variant="outline"
                 className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
                 onClick={handleEmergencyStop}
+                disabled={updateLiveMutation.isPending}
                 data-testid="button-emergency-stop"
               >
                 <AlertCircle className="w-4 h-4 mr-2" />
@@ -124,11 +178,11 @@ export default function AdminLive() {
                 <Label htmlFor="mic-level" className="text-sm font-medium">
                   Microphone Input
                 </Label>
-                <span className="text-sm text-muted-foreground">{micLevel}%</span>
+                <span className="text-sm text-muted-foreground">0%</span>
               </div>
-              <Progress value={micLevel} className="h-2" id="mic-level" />
+              <Progress value={0} className="h-2" id="mic-level" />
               <p className="text-xs text-muted-foreground">
-                {micLevel === 0 ? "No input detected" : "Input level"}
+                No input detected
               </p>
             </div>
 
@@ -137,18 +191,18 @@ export default function AdminLive() {
                 <Label htmlFor="background-volume" className="text-sm font-medium">
                   Background Music Volume
                 </Label>
-                <span className="text-sm text-muted-foreground">{backgroundVolume[0]}%</span>
+                <span className="text-sm text-muted-foreground">{backgroundVolume}%</span>
               </div>
               <div className="flex items-center gap-4">
                 <Volume2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 <Slider
                   id="background-volume"
-                  value={backgroundVolume}
-                  onValueChange={setBackgroundVolume}
+                  value={[backgroundVolume]}
+                  onValueChange={handleVolumeChange}
                   max={100}
                   step={1}
                   className="flex-1"
-                  disabled={!isLive}
+                  disabled={!isLive || updateLiveMutation.isPending}
                   data-testid="slider-background-volume"
                 />
               </div>

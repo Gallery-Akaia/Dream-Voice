@@ -1,13 +1,24 @@
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LiveIndicator } from "@/components/live-indicator";
 import { Music, Users, Radio as RadioIcon, Clock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { AudioTrack, RadioState } from "@shared/schema";
 
 export default function AdminDashboard() {
-  const stats = {
-    totalTracks: 0,
-    currentListeners: 0,
-    isLive: false,
-    uptime: "0h 0m",
+  const { data: tracks, isLoading: tracksLoading } = useQuery<AudioTrack[]>({
+    queryKey: ["/api/tracks"],
+  });
+
+  const { data: radioState, isLoading: stateLoading } = useQuery<RadioState>({
+    queryKey: ["/api/radio/state"],
+    refetchInterval: 5000,
+  });
+
+  const formatUptime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
   };
 
   return (
@@ -30,7 +41,11 @@ export default function AdminDashboard() {
             <RadioIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <LiveIndicator isLive={stats.isLive} />
+            {stateLoading ? (
+              <Skeleton className="h-8 w-32" />
+            ) : (
+              <LiveIndicator isLive={radioState?.isLive || false} />
+            )}
           </CardContent>
         </Card>
 
@@ -42,12 +57,18 @@ export default function AdminDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-listener-count">
-              {stats.currentListeners}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Active connections
-            </p>
+            {stateLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold" data-testid="text-listener-count">
+                  {radioState?.listenerCount || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Active connections
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -59,12 +80,18 @@ export default function AdminDashboard() {
             <Music className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold" data-testid="text-track-count">
-              {stats.totalTracks}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Songs in rotation
-            </p>
+            {tracksLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold" data-testid="text-track-count">
+                  {tracks?.length || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Songs in rotation
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -77,7 +104,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold" data-testid="text-uptime">
-              {stats.uptime}
+              {formatUptime(radioState?.playbackPosition || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
               Continuous streaming
