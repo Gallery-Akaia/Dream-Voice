@@ -45,17 +45,19 @@ export default function AdminLive() {
         wsRef.current = ws;
 
         ws.onopen = () => {
-          // Start microphone capture and stream audio data
-          startMicrophone((audioData: Float32Array) => {
+          // Start microphone capture and stream compressed audio
+          startMicrophone((audioBlob: Blob) => {
             if (ws.readyState === WebSocket.OPEN) {
-              // Convert Float32Array to Base64 for proper transmission
-              const uint8Data = new Uint8Array(audioData.buffer, audioData.byteOffset, audioData.byteLength);
-              const binaryString = String.fromCharCode.apply(null, Array.from(uint8Data));
-              const base64Data = btoa(binaryString);
-              ws.send(JSON.stringify({
-                type: "microphone_audio",
-                data: base64Data,
-              }));
+              // Read blob as Base64 and send immediately
+              const reader = new FileReader();
+              reader.onload = () => {
+                const base64Data = (reader.result as string).split(",")[1];
+                ws.send(JSON.stringify({
+                  type: "microphone_audio",
+                  data: base64Data,
+                }));
+              };
+              reader.readAsDataURL(audioBlob);
             }
           });
         };

@@ -27,9 +27,7 @@ export default function ListenerPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const micNextStartTimeRef = useRef<number>(0);
-  const gainNodeRef = useRef<GainNode | null>(null);
+  const micAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const currentTrack = tracks.find((t) => t.id === radioState.currentTrackId);
 
@@ -77,44 +75,27 @@ export default function ListenerPage() {
   }, [ws, isChatOpen]);
 
   const playMicrophoneAudio = (base64Data: string) => {
-    // Ensure audio context and gain node exist
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      gainNodeRef.current = audioContextRef.current.createGain();
-      gainNodeRef.current.connect(audioContextRef.current.destination);
-      micNextStartTimeRef.current = audioContextRef.current.currentTime;
-    }
-
-    const audioContext = audioContextRef.current;
-    const gainNode = gainNodeRef.current!;
-    
     try {
-      // Decode Base64 to binary string
+      // Create or reuse mic audio element
+      if (!micAudioRef.current) {
+        micAudioRef.current = new Audio();
+        micAudioRef.current.volume = isMuted ? 0 : volume[0] / 100;
+      }
+
+      // Convert Base64 to blob
       const binaryString = atob(base64Data);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
       
-      // Convert to Float32Array
-      const float32Array = new Float32Array(bytes.buffer);
-      
-      // Create audio buffer
-      const audioBuffer = audioContext.createBuffer(1, float32Array.length, audioContext.sampleRate);
-      const channelData = audioBuffer.getChannelData(0);
-      channelData.set(float32Array);
-
-      // Create and schedule source
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(gainNode);
-      
-      // Schedule to start immediately (no delay)
-      const startTime = Math.max(audioContext.currentTime, micNextStartTimeRef.current);
-      source.start(startTime);
-      
-      // Update next start time
-      micNextStartTimeRef.current = startTime + audioBuffer.duration;
+      // Create blob URL and play
+      const blob = new Blob([bytes], { type: "audio/webm" });
+      const url = URL.createObjectURL(blob);
+      micAudioRef.current.src = url;
+      micAudioRef.current.play().catch(() => {
+        // Ignore autoplay errors on some browsers
+      });
     } catch (error) {
       console.error("Microphone audio playback error:", error);
     }
@@ -180,8 +161,8 @@ export default function ListenerPage() {
   }, []);
 
   useEffect(() => {
-    if (!gainNodeRef.current) return;
-    gainNodeRef.current.gain.value = isMuted ? 0 : volume[0] / 100;
+    if (!micAudioRef.current) return;
+    micAudioRef.current.volume = isMuted ? 0 : volume[0] / 100;
   }, [volume, isMuted]);
 
   const togglePlay = () => {

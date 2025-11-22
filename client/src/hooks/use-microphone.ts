@@ -7,11 +7,11 @@ export function useMicrophone() {
   const [error, setError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const onAudioDataRef = useRef<((data: Float32Array) => void) | null>(null);
+  const onAudioDataRef = useRef<((data: Blob) => void) | null>(null);
 
   const updateMicLevel = useCallback(() => {
     if (!analyserRef.current) return;
@@ -25,7 +25,7 @@ export function useMicrophone() {
     animationFrameRef.current = requestAnimationFrame(updateMicLevel);
   }, []);
 
-  const startMicrophone = useCallback(async (onAudioData: (data: Float32Array) => void) => {
+  const startMicrophone = useCallback(async (onAudioData: (data: Blob) => void) => {
     try {
       setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -39,30 +39,34 @@ export function useMicrophone() {
       streamRef.current = stream;
       onAudioDataRef.current = onAudioData;
 
-      // Create audio context
+      // Create MediaRecorder with Opus compression (like WhatsApp/Telegram)
+      const options = {
+        mimeType: "audio/webm;codecs=opus",
+        audioBitsPerSecond: 32000, // 32kbps for low latency
+      };
+
+      const recorder = new MediaRecorder(stream, options);
+      recorderRef.current = recorder;
+
+      // Send compressed audio chunks immediately as they're available
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0 && onAudioDataRef.current) {
+          onAudioDataRef.current(event.data);
+        }
+      };
+
+      // Request audio data every 100ms for ultra-low latency
+      recorder.start(100);
+
+      // Set up analyser for mic level visualization
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioContextRef.current = audioContext;
-
+      
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 2048;
       source.connect(analyser);
       analyserRef.current = analyser;
-
-      // Create script processor for raw audio data with smaller buffer for lower latency
-      const processor = audioContext.createScriptProcessor(512, 1, 1);
-      
-      processor.onaudioprocess = (event) => {
-        const inputData = event.inputBuffer.getChannelData(0);
-        // Send a copy of the float32 audio data
-        if (onAudioDataRef.current) {
-          onAudioDataRef.current(new Float32Array(inputData));
-        }
-      };
-
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-      processorRef.current = processor;
 
       setPermission("granted");
       setIsActive(true);
@@ -76,9 +80,9 @@ export function useMicrophone() {
   }, [updateMicLevel]);
 
   const stopMicrophone = useCallback(() => {
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      recorderRef.current.stop();
+      recorderRef.current = null;
     }
 
     if (streamRef.current) {
