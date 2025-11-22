@@ -109,8 +109,8 @@ export default function ListenerPage() {
       source.buffer = audioBuffer;
       source.connect(gainNode);
       
-      // Schedule to start right after previous audio ends
-      const startTime = Math.max(audioContext.currentTime + 0.01, micNextStartTimeRef.current);
+      // Schedule to start immediately (no delay)
+      const startTime = Math.max(audioContext.currentTime, micNextStartTimeRef.current);
       source.start(startTime);
       
       // Update next start time
@@ -176,8 +176,8 @@ export default function ListenerPage() {
 
   useEffect(() => {
     if (!audioRef.current) return;
-    audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
-  }, [volume, isMuted]);
+    audioRef.current.volume = 1;
+  }, []);
 
   useEffect(() => {
     if (!gainNodeRef.current) return;
