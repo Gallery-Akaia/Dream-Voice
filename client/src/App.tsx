@@ -11,6 +11,7 @@ import NotFound from "@/pages/not-found";
 import ListenerPage from "@/pages/listener";
 import AdminLoginPage from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard";
+import AdminAnalytics from "@/pages/admin-analytics";
 import AdminPlaylist from "@/pages/admin-playlist";
 import AdminLive from "@/pages/admin-live";
 
@@ -47,6 +48,11 @@ function Router() {
       <Route path="/admin/dashboard">
         <AdminLayout>
           <AdminDashboard />
+        </AdminLayout>
+      </Route>
+      <Route path="/admin/analytics">
+        <AdminLayout>
+          <AdminAnalytics />
         </AdminLayout>
       </Route>
       <Route path="/admin/playlist">

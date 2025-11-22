@@ -44,3 +44,15 @@ export interface AdminLiveState {
   isLive: boolean;
   backgroundVolume: number;
 }
+
+export interface ChatMessage {
+  id: string;
+  username: string;
+  text: string;
+  timestamp: number;
+}
+
+export interface ListenerAnalytics {
+  timestamp: number;
+  listenerCount: number;
+}

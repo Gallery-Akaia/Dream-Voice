@@ -21,6 +21,7 @@ export function useWebSocket() {
   const [tracks, setTracks] = useState<AudioTrack[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const [ws, setWs] = useState<WebSocket | null>(null);
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -28,6 +29,7 @@ export function useWebSocket() {
     
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
+    setWs(ws);
 
     ws.onopen = () => {
       setIsConnected(true);
@@ -90,5 +92,5 @@ export function useWebSocket() {
     };
   }, []);
 
-  return { radioState, tracks, isConnected };
+  return { radioState, tracks, isConnected, ws };
 }

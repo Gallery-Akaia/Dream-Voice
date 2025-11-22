@@ -215,6 +215,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/analytics", async (req, res) => {
+    try {
+      const analytics = storage.getListenerAnalytics(60);
+      res.json(analytics);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
   app.post("/api/radio/live", async (req, res) => {
     try {
       const { isLive, backgroundVolume } = req.body;
@@ -248,6 +257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const currentState = storage.getRadioState();
     currentState.listenerCount = connectedClients.size;
     storage.updateRadioState({ listenerCount: connectedClients.size });
+    storage.recordListenerAnalytics(connectedClients.size);
 
     const tracks = await storage.getAllTracks();
     ws.send(JSON.stringify({
@@ -269,6 +279,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           storage.updateRadioState({
             playbackPosition: data.position,
             currentTrackId: data.trackId,
+          });
+        } else if (data.type === "chat_message") {
+          const chatMessage = {
+            id: Math.random().toString(),
+            username: data.username || "Anonymous",
+            text: data.text,
+            timestamp: Date.now(),
+          };
+          storage.addChatMessage(chatMessage);
+          broadcastToClients({
+            type: "chat_message",
+            username: chatMessage.username,
+            text: chatMessage.text,
           });
         }
       } catch (error) {
@@ -295,6 +318,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     playbackInterval = setInterval(async () => {
       const state = storage.getRadioState();
       const tracks = await storage.getAllTracks();
+
+      storage.recordListenerAnalytics(connectedClients.size);
 
       if (tracks.length === 0 || state.isLive) return;
 

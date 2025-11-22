@@ -13,12 +13,20 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
+import { BarChart3 } from "lucide-react";
+
 const menuItems = [
   {
     title: "Dashboard",
     url: "/admin/dashboard",
     icon: LayoutDashboard,
     testId: "link-dashboard",
+  },
+  {
+    title: "Analytics",
+    url: "/admin/analytics",
+    icon: BarChart3,
+    testId: "link-analytics",
   },
   {
     title: "Playlist Manager",

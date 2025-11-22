@@ -4,14 +4,21 @@ import { Slider } from "@/components/ui/slider";
 import { Card } from "@/components/ui/card";
 import { LiveIndicator } from "@/components/live-indicator";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Play, Pause, Volume2, VolumeX, Radio, Users } from "lucide-react";
+import { ChatWidget } from "@/components/chat-widget";
+import { Play, Pause, Volume2, VolumeX, Radio, Users, MessageCircle } from "lucide-react";
 import { useWebSocket } from "@/hooks/use-websocket";
+import type { ChatMessage } from "@shared/schema";
 
 export default function ListenerPage() {
-  const { radioState, tracks, isConnected } = useWebSocket();
+  const { radioState, tracks, isConnected, ws } = useWebSocket();
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState([75]);
   const [isMuted, setIsMuted] = useState(false);
+  const [username, setUsername] = useState("");
+  const [usernameEntered, setUsernameEntered] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -31,18 +38,31 @@ export default function ListenerPage() {
   }, []);
 
   useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
-  }, [volume, isMuted]);
+    if (!ws) return;
 
-  useEffect(() => {
-    if (!isConnected) {
-      setIsPlaying(false);
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "chat_message") {
+          const newMessage: ChatMessage = {
+            id: Math.random().toString(),
+            username: data.username,
+            text: data.text,
+            timestamp: Date.now(),
+          };
+          setChatMessages(prev => [...prev.slice(-49), newMessage]);
+          if (!isChatOpen) {
+            setUnreadCount(prev => prev + 1);
+          }
+        }
+      } catch (error) {
+        console.error("Chat message error:", error);
       }
-    }
-  }, [isConnected]);
+    };
+
+    ws.addEventListener("message", handleMessage);
+    return () => ws.removeEventListener("message", handleMessage);
+  }, [ws, isChatOpen]);
 
   useEffect(() => {
     if (!audioRef.current || !currentTrack || !isPlaying) {
@@ -77,7 +97,6 @@ export default function ListenerPage() {
         const drift = Math.abs(serverPosition - clientPosition);
 
         if (drift > 0.5) {
-          console.log(`Syncing playback: server=${serverPosition}s, client=${clientPosition}s, drift=${drift.toFixed(2)}s`);
           audio.currentTime = serverPosition;
         }
       }
@@ -89,6 +108,20 @@ export default function ListenerPage() {
       }
     };
   }, [isPlaying, currentTrack, radioState.currentTrackId, radioState.playbackPosition]);
+
+  useEffect(() => {
+    if (!isConnected) {
+      setIsPlaying(false);
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+      }
+    }
+  }, [isConnected]);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
+  }, [volume, isMuted]);
 
   const togglePlay = () => {
     if (!isConnected || !currentTrack) return;
@@ -114,11 +147,61 @@ export default function ListenerPage() {
     setIsMuted(!isMuted);
   };
 
+  const handleSendChat = (text: string) => {
+    if (!ws || !usernameEntered) return;
+    
+    ws.send(JSON.stringify({
+      type: "chat_message",
+      username: username,
+      text: text,
+    }));
+  };
+
+  const handleSetUsername = () => {
+    if (username.trim()) {
+      setUsernameEntered(true);
+    }
+  };
+
+  const handleChatOpen = () => {
+    setIsChatOpen(true);
+    setUnreadCount(0);
+  };
+
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      <div className="absolute top-4 right-4 z-10">
+      <div className="absolute top-4 right-4 z-10 flex gap-2">
+        {!usernameEntered && (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Your name"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleSetUsername()}
+              className="px-2 py-1 rounded text-sm border bg-background"
+              data-testid="input-username"
+            />
+            <Button size="sm" onClick={handleSetUsername} data-testid="button-set-username">
+              Enter
+            </Button>
+          </div>
+        )}
         <ThemeToggle />
       </div>
+
+      {usernameEntered && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="absolute top-4 left-4 z-10"
+          onClick={handleChatOpen}
+          data-testid="button-open-chat"
+        >
+          <MessageCircle className="w-4 h-4 mr-1" />
+          {unreadCount > 0 && <span className="ml-1 bg-destructive text-white rounded-full px-2 text-xs">{unreadCount}</span>}
+        </Button>
+      )}
 
       <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-accent/10"></div>
 
@@ -231,6 +314,14 @@ export default function ListenerPage() {
           </div>
         </div>
       </div>
+
+      <ChatWidget
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        onSendMessage={handleSendChat}
+        messages={chatMessages}
+        username={username}
+      />
     </div>
   );
 }

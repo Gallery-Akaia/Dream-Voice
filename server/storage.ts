@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type AudioTrack, type InsertAudioTrack, type RadioState } from "@shared/schema";
+import { type User, type InsertUser, type AudioTrack, type InsertAudioTrack, type RadioState, type ChatMessage, type ListenerAnalytics } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -14,12 +14,20 @@ export interface IStorage {
   
   getRadioState(): RadioState;
   updateRadioState(state: Partial<RadioState>): void;
+
+  addChatMessage(message: ChatMessage): void;
+  getChatMessages(limit: number): ChatMessage[];
+  
+  recordListenerAnalytics(count: number): void;
+  getListenerAnalytics(minutesBack: number): ListenerAnalytics[];
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private tracks: Map<string, AudioTrack>;
   private radioState: RadioState;
+  private chatMessages: ChatMessage[] = [];
+  private listenerAnalytics: ListenerAnalytics[] = [];
 
   constructor() {
     this.users = new Map();
@@ -83,6 +91,32 @@ export class MemStorage implements IStorage {
 
   updateRadioState(state: Partial<RadioState>): void {
     this.radioState = { ...this.radioState, ...state };
+  }
+
+  addChatMessage(message: ChatMessage): void {
+    this.chatMessages.push(message);
+    if (this.chatMessages.length > 100) {
+      this.chatMessages = this.chatMessages.slice(-100);
+    }
+  }
+
+  getChatMessages(limit: number): ChatMessage[] {
+    return this.chatMessages.slice(-limit);
+  }
+
+  recordListenerAnalytics(count: number): void {
+    this.listenerAnalytics.push({
+      timestamp: Date.now(),
+      listenerCount: count,
+    });
+    if (this.listenerAnalytics.length > 1440) {
+      this.listenerAnalytics = this.listenerAnalytics.slice(-1440);
+    }
+  }
+
+  getListenerAnalytics(minutesBack: number): ListenerAnalytics[] {
+    const cutoff = Date.now() - minutesBack * 60 * 1000;
+    return this.listenerAnalytics.filter(a => a.timestamp >= cutoff);
   }
 }
 
