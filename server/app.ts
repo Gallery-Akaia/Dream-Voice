@@ -1,4 +1,5 @@
 import { type Server } from "node:http";
+import path from "path";
 
 import express, {
   type Express,
@@ -6,6 +7,8 @@ import express, {
   Response,
   NextFunction,
 } from "express";
+import session from "express-session";
+import createMemoryStore from "memorystore";
 
 import { registerRoutes } from "./routes";
 
@@ -22,6 +25,30 @@ export function log(message: string, source = "express") {
 
 export const app = express();
 
+const MemoryStore = createMemoryStore(session);
+
+declare module 'express-session' {
+  interface SessionData {
+    userId: string;
+  }
+}
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "radio-new-power-secret-key-change-in-production",
+    resave: false,
+    saveUninitialized: false,
+    store: new MemoryStore({
+      checkPeriod: 86400000,
+    }),
+    cookie: {
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+    },
+  })
+);
+
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
@@ -33,6 +60,8 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
+
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.use((req, res, next) => {
   const start = Date.now();
