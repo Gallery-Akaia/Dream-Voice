@@ -6,6 +6,7 @@ import { LiveIndicator } from "@/components/live-indicator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ChatWidget } from "@/components/chat-widget";
 import { Play, Pause, Volume2, VolumeX, Radio, Users, MessageCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useWebSocket } from "@/hooks/use-websocket";
 import type { ChatMessage } from "@shared/schema";
 
@@ -169,27 +170,20 @@ export default function ListenerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-purple-800 relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse animation-delay-2000"></div>
-        <div className="absolute top-1/2 right-0 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl animate-pulse animation-delay-4000"></div>
-      </div>
-
+    <div className="min-h-screen bg-background relative">
       <div className="absolute top-4 right-4 z-10 flex gap-2">
         {!usernameEntered && (
           <div className="flex gap-2">
-            <input
+            <Input
               type="text"
               placeholder="Your name"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSetUsername()}
-              className="px-3 py-2 rounded-lg text-sm border bg-white/10 backdrop-blur border-white/20 text-white placeholder:text-white/50"
+              onKeyDown={(e) => e.key === "Enter" && handleSetUsername()}
+              className="h-9"
               data-testid="input-username"
             />
-            <Button size="sm" onClick={handleSetUsername} className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600" data-testid="button-set-username">
+            <Button size="sm" onClick={handleSetUsername} data-testid="button-set-username">
               Enter
             </Button>
           </div>
@@ -201,34 +195,36 @@ export default function ListenerPage() {
         <Button
           variant="outline"
           size="sm"
-          className="absolute top-4 left-4 z-10 bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20"
+          className="absolute top-4 left-4 z-10"
           onClick={handleChatOpen}
           data-testid="button-open-chat"
         >
           <MessageCircle className="w-4 h-4 mr-1" />
-          {unreadCount > 0 && <span className="ml-1 bg-pink-500 text-white rounded-full px-2 text-xs">{unreadCount}</span>}
+          {unreadCount > 0 && <span className="ml-1 bg-destructive text-destructive-foreground rounded-full px-2 text-xs">{unreadCount}</span>}
         </Button>
       )}
 
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 py-12">
-        <div className="w-full max-w-2xl mx-auto space-y-8">
-          <div className="text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 mb-4 shadow-2xl animate-pulse">
-              <Radio className="w-16 h-16 text-white" />
+      <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12">
+        <div className="w-full max-w-3xl mx-auto space-y-8">
+          <div className="text-center space-y-6">
+            <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-primary/10 mb-4 shadow-sm">
+              <Radio className="w-14 h-14 text-primary" />
             </div>
             
-            <h1 className="text-6xl font-bold tracking-tight text-white drop-shadow-lg" data-testid="text-station-name">
-              Radio New Power
-            </h1>
-            <p className="text-xl text-purple-100">
-              Your 24/7 streaming radio station
-            </p>
+            <div className="space-y-2">
+              <h1 className="text-5xl font-semibold tracking-tight" data-testid="text-station-name">
+                Radio New Power
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Your 24/7 streaming radio station
+              </p>
+            </div>
           </div>
 
-          <Card className="p-8 space-y-6 bg-white/95 backdrop-blur border-white/30 shadow-2xl">
+          <Card className="p-8 space-y-6 shadow-md">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <LiveIndicator isLive={radioState.isLive} />
-              <div className="flex items-center gap-2 text-sm text-purple-600 font-semibold" data-testid="text-listener-count">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-listener-count">
                 <Users className="w-4 h-4" />
                 <span>{radioState.listenerCount} listeners</span>
               </div>
@@ -236,19 +232,19 @@ export default function ListenerPage() {
 
             {currentTrack ? (
               <div className="text-center space-y-1" data-testid="div-current-track">
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">{currentTrack.title}</h2>
-                <p className="text-lg text-gray-600">
+                <h2 className="text-3xl font-semibold">{currentTrack.title}</h2>
+                <p className="text-lg text-muted-foreground">
                   {currentTrack.artist || "Unknown Artist"}
                 </p>
               </div>
             ) : (
               <div className="text-center space-y-1">
-                <h2 className="text-2xl font-semibold text-gray-400">
+                <h2 className="text-2xl font-medium text-muted-foreground">
                   {isConnected 
                     ? (tracks.length > 0 ? "Ready to play" : "No tracks available") 
                     : "Connecting to server..."}
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   {isConnected && tracks.length > 0
                     ? "Press play to start listening" 
                     : isConnected 
@@ -258,10 +254,10 @@ export default function ListenerPage() {
               </div>
             )}
 
-            <div className="flex justify-center">
+            <div className="flex justify-center py-4">
               <Button
                 size="icon"
-                className="h-24 w-24 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-2xl transform hover:scale-105 transition-transform"
+                className="h-24 w-24 rounded-full shadow-lg"
                 onClick={togglePlay}
                 disabled={!isConnected || tracks.length === 0}
                 data-testid="button-play-pause"
@@ -276,14 +272,13 @@ export default function ListenerPage() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-purple-600">Volume</span>
-                <span className="text-sm text-purple-600 font-bold">{isMuted ? 0 : volume[0]}%</span>
+                <span className="text-sm font-medium">Volume</span>
+                <span className="text-sm text-muted-foreground">{isMuted ? 0 : volume[0]}%</span>
               </div>
               <div className="flex items-center gap-4">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-purple-600 hover:bg-purple-100"
                   onClick={toggleMute}
                   data-testid="button-mute"
                 >
@@ -306,14 +301,14 @@ export default function ListenerPage() {
             </div>
 
             {!isConnected && (
-              <div className="text-center text-sm text-pink-600 font-semibold">
+              <div className="text-center text-sm text-destructive font-medium">
                 Connection lost. Trying to reconnect...
               </div>
             )}
           </Card>
 
           <div className="text-center">
-            <p className="text-sm text-purple-100">
+            <p className="text-sm text-muted-foreground">
               Synchronized playback • All listeners hear the same audio
             </p>
           </div>

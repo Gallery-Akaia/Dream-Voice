@@ -102,7 +102,7 @@ export default function AdminPlaylist() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-playlist-title">
+        <h1 className="text-3xl font-semibold tracking-tight" data-testid="text-playlist-title">
           Playlist Manager
         </h1>
         <p className="text-muted-foreground">

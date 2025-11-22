@@ -35,7 +35,7 @@ export default function AdminAnalytics() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-analytics-title">
+        <h1 className="text-3xl font-semibold tracking-tight" data-testid="text-analytics-title">
           Listener Analytics
         </h1>
         <p className="text-muted-foreground">
@@ -56,7 +56,7 @@ export default function AdminAnalytics() {
               <Skeleton className="h-8 w-16" />
             ) : (
               <>
-                <div className="text-2xl font-bold" data-testid="text-current-listeners">
+                <div className="text-2xl font-semibold" data-testid="text-current-listeners">
                   {currentListeners}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -79,7 +79,7 @@ export default function AdminAnalytics() {
               <Skeleton className="h-8 w-16" />
             ) : (
               <>
-                <div className="text-2xl font-bold" data-testid="text-peak-listeners">
+                <div className="text-2xl font-semibold" data-testid="text-peak-listeners">
                   {peakListeners}
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -102,7 +102,7 @@ export default function AdminAnalytics() {
               <Skeleton className="h-8 w-16" />
             ) : (
               <>
-                <div className="text-2xl font-bold" data-testid="text-avg-listeners">
+                <div className="text-2xl font-semibold" data-testid="text-avg-listeners">
                   {avgListeners}
                 </div>
                 <p className="text-xs text-muted-foreground">

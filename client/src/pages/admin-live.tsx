@@ -70,7 +70,7 @@ export default function AdminLive() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Live Controls</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Live Controls</h1>
           <p className="text-muted-foreground">Broadcast live to your listeners</p>
         </div>
         <div className="grid gap-6 md:grid-cols-2">
@@ -96,7 +96,7 @@ export default function AdminLive() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight" data-testid="text-live-title">
+        <h1 className="text-3xl font-semibold tracking-tight" data-testid="text-live-title">
           Live Controls
         </h1>
         <p className="text-muted-foreground">

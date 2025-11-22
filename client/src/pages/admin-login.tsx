@@ -46,9 +46,7 @@ export default function AdminLoginPage() {
         <ThemeToggle />
       </div>
 
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-accent/10"></div>
-
-      <Card className="w-full max-w-md relative z-10">
+      <Card className="w-full max-w-md shadow-sm">
         <CardHeader className="space-y-4 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mx-auto">
             <Radio className="w-8 h-8 text-primary" />
