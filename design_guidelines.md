@@ -1,130 +1,184 @@
 # Radio New Power - Design Guidelines
 
 ## Design Approach
-**Reference-Based with System Foundation**
-Drawing inspiration from modern streaming platforms (Spotify, Apple Music, SoundCloud) while prioritizing functional clarity. This is a utility-focused application where real-time synchronization and admin controls are paramount.
+**Reference-Based: Modern SaaS/Enterprise Platforms**
+Drawing inspiration from Linear, Vercel, and modern productivity tools. This is a utility-focused streaming platform prioritizing functional clarity, professional aesthetics, and real-time synchronization. The design uses sophisticated neutrals with restrained blue accents for a polished, enterprise-grade appearance.
 
 ## Core Design Principles
-1. **Instant Recognition**: Users should immediately understand the player state (playing/paused/live)
-2. **Minimal Friction**: One-click to start listening
-3. **Admin Power**: Clear, accessible controls for broadcasting
-4. **Visual Feedback**: Real-time indicators for live status and synchronization
+1. **Professional Restraint**: Understated elegance over visual noise
+2. **Functional Clarity**: Every element serves a purpose
+3. **Generous Space**: Breathing room enhances comprehension
+4. **Subtle Depth**: Elevation through shadows, not color
 
 ---
 
 ## Typography
-- **Primary Font**: Inter (Google Fonts) - clean, modern, excellent readability
-- **Display/Headings**: Inter Bold (text-3xl to text-5xl)
+- **Primary Font**: Inter (Google Fonts CDN)
+- **Display/Headings**: Inter SemiBold (text-2xl to text-4xl)
 - **Body Text**: Inter Regular (text-base to text-lg)
-- **UI Labels**: Inter Medium (text-sm)
-- **Accent/Live Indicators**: Inter SemiBold
+- **UI Labels**: Inter Medium (text-sm to text-base)
+- **Micro Text**: Inter Regular (text-xs for metadata)
+
+**Hierarchy**:
+- H1: text-4xl font-semibold
+- H2: text-2xl font-semibold
+- H3: text-xl font-medium
+- Body: text-base
+- Labels: text-sm font-medium
+- Captions: text-xs text-gray-500
 
 ---
 
 ## Layout System
-**Spacing Primitives**: Use Tailwind units of **2, 4, 6, 8, 12, 16, 20**
-- Tight spacing: p-2, gap-2
+**Spacing Primitives**: Tailwind units of **2, 4, 6, 8, 12, 16, 24**
+- Micro spacing: gap-2, p-2
 - Standard: p-4, p-6, gap-4
-- Generous: p-8, p-12, gap-8
-- Section spacing: py-16, py-20
+- Component padding: p-8, p-12
+- Section spacing: py-16, py-24
 
-**Grid Strategy**:
-- Listener view: Single-column centered (max-w-2xl)
-- Admin panel: Two-column split (sidebar + main content)
+**Container Strategy**:
+- Listener view: max-w-4xl centered
+- Admin dashboard: Full-width with max-w-7xl inner content
+- Sidebar: w-64 fixed
+
+---
+
+## Color Usage (Sophisticated Neutrals + Blue Accents)
+
+**Do NOT specify exact colors** - this is implementation detail. Instead, describe the color strategy:
+
+**Foundation**:
+- Background layers in neutral gray spectrum (light to medium tones)
+- White surfaces for content cards/panels
+- Very subtle borders between sections
+
+**Accents**:
+- Muted blue for primary actions (play button, go live toggle)
+- Darker blue for hover states
+- Avoid saturated, bright blues - prefer professional, muted tones
+
+**Functional Colors**:
+- Red for live indicators and emergency actions (desaturated, not bright)
+- Gray spectrum for inactive/disabled states
+- Success states use subtle green (rare usage)
+
+**Text Hierarchy**:
+- Primary text in dark gray (not pure black)
+- Secondary text in medium gray
+- Tertiary/metadata in light gray
 
 ---
 
 ## Component Library
 
 ### Listener Interface
-**Hero Section** (h-screen or min-h-[600px]):
-- Full-width background with subtle gradient overlay
-- Centered station branding and tagline
-- Large, prominent play/pause button (min-w-[120px])
-- Station logo/icon centered above controls
 
-**Player Controls** (sticky bottom or centered):
-- Large circular play/pause toggle button
-- Volume slider with icon indicators
-- Current track/show title display
-- Live indicator badge (pulsing animation when active)
-- Listener count display
-- Waveform visualization or audio bars (subtle, non-distracting)
+**Hero Section** (min-h-[80vh]):
+- Full-width background image (radio equipment, sound waves, or studio environment)
+- Dark gradient overlay for text readability
+- Centered station branding (logo + tagline)
+- Large play/pause button with **blurred background** (backdrop-blur-md)
+- Button positioned center, no hover effects on background blur
+- Subtle live status badge if broadcasting
+- Listener count in corner (small, unobtrusive)
 
-**Status Indicators**:
-- "LIVE" badge: Pulsing red dot with text
-- "Automated Playback" badge: Static gray indicator
-- Connection status: Small icon in corner
+**Player Controls Bar** (sticky bottom, full-width):
+- Contained layout (max-w-4xl centered)
+- Elevated card with subtle shadow
+- Track title and artist (left-aligned)
+- Play/pause, volume controls (center)
+- Live indicator with pulsing dot (right)
+- Clean, horizontal arrangement
+
+**Secondary Sections** (below fold):
+- Current Show/Schedule card
+- About the Station section
+- Contact/Social links footer
 
 ### Admin Dashboard
-**Navigation Sidebar** (w-64):
-- Station branding at top
-- Primary sections: Dashboard, Playlist Manager, Live Controls, Analytics
-- Logout button at bottom
-- Current admin status indicator
 
-**Live Control Panel**:
-- Prominent "Go Live" toggle button (large, cannot be missed)
-- Microphone input level meter
-- Background music volume slider (0-100% with live preview)
-- Live stream status (connected listeners count)
-- Emergency stop button (destructive styling)
-- Audio preview monitor
+**Sidebar Navigation** (w-64, fixed left):
+- Station logo top
+- Nav items: Dashboard, Live Studio, Playlist, Analytics, Settings
+- Active state with subtle blue accent
+- Logout at bottom
+- Minimalist icons (Heroicons via CDN)
+
+**Live Studio Panel**:
+- Large "Go Live" toggle button (prominent, cannot miss)
+- Microphone level meter (horizontal bar, real-time)
+- Background music volume slider with percentage
+- Connected listeners count (large number)
+- Emergency broadcast stop (destructive red button)
+- Status cards showing stream health
 
 **Playlist Manager**:
-- Drag-and-drop audio file upload zone
-- Table/grid view of uploaded tracks
-- Track details: title, duration, artist
-- Reorder controls
-- Delete/edit actions
-- Play queue preview
+- Upload zone with dashed border
+- Table view of tracks (title, duration, actions)
+- Drag handles for reordering
+- Inline edit and delete actions
+- Clean, data-focused layout
+
+**Dashboard Overview**:
+- Grid of metric cards (2x2 or 3x1)
+- Listening time graph (line chart, minimal styling)
+- Recent activity feed
 
 ---
 
-## Visual Hierarchy
-1. **Primary Action**: Play/pause button (listener) or Go Live (admin)
-2. **Secondary Info**: Track title, live status, listener count
-3. **Tertiary Controls**: Volume, settings, navigation
-4. **Background Elements**: Waveforms, gradients, subtle patterns
+## Elevation & Depth
 
----
+**Shadow System**:
+- Cards: subtle shadow (shadow-sm)
+- Elevated panels: medium shadow (shadow-md)
+- Modals/overlays: pronounced shadow (shadow-lg)
+- No drop-shadows on buttons (use subtle borders instead)
 
-## Interactive States
-- **Buttons**: Subtle scale on hover (scale-105), pressed state (scale-95)
-- **Sliders**: Highlight thumb on interaction
-- **Live Toggle**: Smooth transition between states (300ms)
-- **Status Changes**: Fade transitions for indicators (200ms)
+**Layering**:
+- Background: neutral gray
+- Surface: white/very light gray cards
+- Interactive elements: slightly elevated from surface
 
 ---
 
 ## Images
-**Hero Background**: Abstract sound wave visualization or radio tower silhouette with gradient overlay (dark to transparent). Image should evoke energy and connectivity.
-- Placement: Full-width hero section
-- Treatment: Blur overlay for button readability
 
-**Station Logo**: Bold, modern wordmark or icon representing "Radio New Power"
-- Placement: Centered in hero, top-left in admin sidebar
-- Size: 200px width in hero, 120px in sidebar
+**Hero Background Image**:
+- **Type**: Professional radio studio environment, sound mixing console, or abstract sound wave visualization
+- **Treatment**: Dark gradient overlay (black opacity 40-60%) for text contrast
+- **Placement**: Full-width, full-height hero section
+- **Content over image**: Station logo, tagline, play button with blurred background
 
-No additional decorative images needed - focus on functional UI clarity.
+**Station Logo**:
+- Modern, minimal wordmark or abstract icon
+- Placement: Hero center (200px width), sidebar top (100px width)
+
+**Admin Dashboard**: No decorative images - focus on data and controls
 
 ---
 
 ## Key Interactions
-- **Listener Join**: Immediate audio sync, no buffering UI unless necessary
-- **Admin Goes Live**: Visual transition across all connected clients (LIVE badge appears)
-- **Volume Adjustments**: Real-time, no lag in response
-- **Connection Loss**: Clear error state with retry mechanism
+
+**Transitions**: All state changes use 200-300ms easing
+- Play/pause: Smooth icon morph
+- Live toggle: Slide animation with color transition
+- Volume sliders: Immediate visual feedback
+
+**Loading States**: Minimal spinners, skeleton screens for content areas
+
+**Focus States**: Blue outline (2px) on keyboard navigation
+
+**Disabled States**: Reduced opacity (50%), no hover effects
 
 ---
 
 ## Accessibility
-- High contrast for all status indicators
-- Keyboard shortcuts for play/pause (spacebar)
+- WCAG AA contrast ratios minimum
+- Keyboard shortcuts: Space (play/pause), M (mute)
+- ARIA labels on all player controls
 - Screen reader announcements for live status changes
-- Focus indicators on all interactive elements
-- ARIA labels for player controls
+- Focus visible on all interactive elements
 
 ---
 
-This design prioritizes functionality and clarity while maintaining a modern, professional aesthetic appropriate for a radio streaming platform.
+This design creates a professional, enterprise-grade streaming platform that feels refined and purposeful. The restrained color palette and generous spacing ensure the interface never feels cluttered, while subtle depth cues guide user attention effectively.
