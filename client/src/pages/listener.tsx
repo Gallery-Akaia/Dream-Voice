@@ -28,6 +28,9 @@ export default function ListenerPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const micBufferRef = useRef<Float32Array[]>([]);
+  const micSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const micScheduledTimeRef = useRef<number>(0);
 
   const currentTrack = tracks.find((t) => t.id === radioState.currentTrackId);
 
@@ -82,18 +85,36 @@ export default function ListenerPage() {
 
     const audioContext = audioContextRef.current;
     
-    // Convert number array back to Uint8Array
+    // Convert number array back to Uint8Array and then Float32Array
     const uint8Array = new Uint8Array(audioData);
-    // Convert to Float32Array
     const float32Array = new Float32Array(uint8Array.buffer);
+    
+    // Queue the audio data
+    micBufferRef.current.push(float32Array);
+    
+    // Schedule playback
+    scheduleNextAudioChunk();
+  };
 
-    // Create audio buffer
+  const scheduleNextAudioChunk = () => {
+    if (!audioContextRef.current || micBufferRef.current.length === 0) return;
+    
+    // If something is already scheduled, don't schedule again yet
+    if (micSourceRef.current && audioContextRef.current.currentTime < micScheduledTimeRef.current) {
+      return;
+    }
+    
+    const audioContext = audioContextRef.current;
+    const chunk = micBufferRef.current.shift();
+    if (!chunk) return;
+
     try {
-      const audioBuffer = audioContext.createBuffer(1, float32Array.length, audioContext.sampleRate);
+      // Create audio buffer
+      const audioBuffer = audioContext.createBuffer(1, chunk.length, audioContext.sampleRate);
       const channelData = audioBuffer.getChannelData(0);
-      channelData.set(float32Array);
+      channelData.set(chunk);
 
-      // Create and play source
+      // Create source
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       
@@ -104,7 +125,15 @@ export default function ListenerPage() {
       source.connect(gainNode);
       gainNode.connect(audioContext.destination);
       
-      source.start(0);
+      // Schedule playback
+      const startTime = Math.max(audioContext.currentTime, micScheduledTimeRef.current);
+      source.start(startTime);
+      micScheduledTimeRef.current = startTime + audioBuffer.duration;
+      micSourceRef.current = source;
+      
+      // Schedule next chunk
+      const delay = audioBuffer.duration * 1000;
+      setTimeout(scheduleNextAudioChunk, Math.max(0, delay - 50));
     } catch (error) {
       console.error("Microphone audio playback error:", error);
     }

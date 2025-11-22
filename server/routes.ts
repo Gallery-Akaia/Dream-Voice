@@ -37,6 +37,30 @@ const upload = multer({
 });
 
 const connectedClients = new Set<WebSocket>();
+let microphoneAudioBuffer: number[] = [];
+let microphoneBufferTimeout: NodeJS.Timeout | null = null;
+
+function broadcastMicrophoneAudio(data: number[]) {
+  // Add to buffer
+  microphoneAudioBuffer.push(...data);
+  
+  // Clear existing timeout
+  if (microphoneBufferTimeout) {
+    clearTimeout(microphoneBufferTimeout);
+  }
+  
+  // Schedule broadcast after 100ms to batch chunks
+  microphoneBufferTimeout = setTimeout(() => {
+    if (microphoneAudioBuffer.length > 0) {
+      broadcastToClients({
+        type: "microphone_audio",
+        data: microphoneAudioBuffer,
+      });
+      microphoneAudioBuffer = [];
+    }
+    microphoneBufferTimeout = null;
+  }, 100);
+}
 
 function broadcastToClients(data: any) {
   const message = JSON.stringify(data);
@@ -325,11 +349,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             text: chatMessage.text,
           });
         } else if (data.type === "microphone_audio") {
-          // Broadcast microphone audio to all listening clients
-          broadcastToClients({
-            type: "microphone_audio",
-            data: data.data,
-          });
+          // Buffer and batch microphone audio before broadcasting
+          broadcastMicrophoneAudio(data.data);
         }
       } catch (error) {
         console.error("WebSocket message error:", error);
