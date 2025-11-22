@@ -28,9 +28,8 @@ export default function ListenerPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const micBufferRef = useRef<Float32Array[]>([]);
-  const micSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const micScheduledTimeRef = useRef<number>(0);
+  const micNextStartTimeRef = useRef<number>(0);
+  const gainNodeRef = useRef<GainNode | null>(null);
 
   const currentTrack = tracks.find((t) => t.id === radioState.currentTrackId);
 
@@ -78,62 +77,38 @@ export default function ListenerPage() {
   }, [ws, isChatOpen]);
 
   const playMicrophoneAudio = (audioData: number[]) => {
-    // Ensure audio context exists
+    // Ensure audio context and gain node exist
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      gainNodeRef.current = audioContextRef.current.createGain();
+      gainNodeRef.current.connect(audioContextRef.current.destination);
+      micNextStartTimeRef.current = audioContextRef.current.currentTime;
     }
 
     const audioContext = audioContextRef.current;
+    const gainNode = gainNodeRef.current!;
     
-    // Convert number array back to Uint8Array and then Float32Array
-    const uint8Array = new Uint8Array(audioData);
-    const float32Array = new Float32Array(uint8Array.buffer);
-    
-    // Queue the audio data
-    micBufferRef.current.push(float32Array);
-    
-    // Schedule playback
-    scheduleNextAudioChunk();
-  };
-
-  const scheduleNextAudioChunk = () => {
-    if (!audioContextRef.current || micBufferRef.current.length === 0) return;
-    
-    // If something is already scheduled, don't schedule again yet
-    if (micSourceRef.current && audioContextRef.current.currentTime < micScheduledTimeRef.current) {
-      return;
-    }
-    
-    const audioContext = audioContextRef.current;
-    const chunk = micBufferRef.current.shift();
-    if (!chunk) return;
-
     try {
+      // Convert number array to Float32Array
+      const uint8Array = new Uint8Array(audioData);
+      const float32Array = new Float32Array(uint8Array.buffer);
+      
       // Create audio buffer
-      const audioBuffer = audioContext.createBuffer(1, chunk.length, audioContext.sampleRate);
+      const audioBuffer = audioContext.createBuffer(1, float32Array.length, audioContext.sampleRate);
       const channelData = audioBuffer.getChannelData(0);
-      channelData.set(chunk);
+      channelData.set(float32Array);
 
-      // Create source
+      // Create and schedule source
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
-      
-      // Apply volume
-      const gainNode = audioContext.createGain();
-      gainNode.gain.value = isMuted ? 0 : volume[0] / 100;
-      
       source.connect(gainNode);
-      gainNode.connect(audioContext.destination);
       
-      // Schedule playback
-      const startTime = Math.max(audioContext.currentTime, micScheduledTimeRef.current);
+      // Schedule to start right after previous audio ends
+      const startTime = Math.max(audioContext.currentTime + 0.01, micNextStartTimeRef.current);
       source.start(startTime);
-      micScheduledTimeRef.current = startTime + audioBuffer.duration;
-      micSourceRef.current = source;
       
-      // Schedule next chunk
-      const delay = audioBuffer.duration * 1000;
-      setTimeout(scheduleNextAudioChunk, Math.max(0, delay - 50));
+      // Update next start time
+      micNextStartTimeRef.current = startTime + audioBuffer.duration;
     } catch (error) {
       console.error("Microphone audio playback error:", error);
     }
@@ -196,6 +171,11 @@ export default function ListenerPage() {
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
+  }, [volume, isMuted]);
+
+  useEffect(() => {
+    if (!gainNodeRef.current) return;
+    gainNodeRef.current.gain.value = isMuted ? 0 : volume[0] / 100;
   }, [volume, isMuted]);
 
   const togglePlay = () => {
