@@ -27,6 +27,8 @@ export default function ListenerPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const micAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   const currentTrack = tracks.find((t) => t.id === radioState.currentTrackId);
 
@@ -60,15 +62,56 @@ export default function ListenerPage() {
           if (!isChatOpen) {
             setUnreadCount(prev => prev + 1);
           }
+        } else if (data.type === "microphone_audio") {
+          // Play microphone audio from admin
+          playMicrophoneAudio(data.data);
         }
       } catch (error) {
-        console.error("Chat message error:", error);
+        console.error("WebSocket message error:", error);
       }
     };
 
     ws.addEventListener("message", handleMessage);
     return () => ws.removeEventListener("message", handleMessage);
   }, [ws, isChatOpen]);
+
+  const playMicrophoneAudio = (audioData: number[]) => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+
+    const audioContext = audioContextRef.current;
+    const int16Array = new Int16Array(audioData);
+    const float32Array = new Float32Array(int16Array.length);
+    
+    // Convert int16 to float32
+    for (let i = 0; i < int16Array.length; i++) {
+      float32Array[i] = int16Array[i] < 0 
+        ? int16Array[i] / 0x8000 
+        : int16Array[i] / 0x7FFF;
+    }
+
+    // Create audio buffer
+    const audioBuffer = audioContext.createBuffer(1, float32Array.length, 48000);
+    const channelData = audioBuffer.getChannelData(0);
+    channelData.set(float32Array);
+
+    // Stop previous playback
+    if (micAudioSourceRef.current) {
+      try {
+        micAudioSourceRef.current.stop();
+      } catch (e) {
+        // Already stopped
+      }
+    }
+
+    // Create and play source
+    const source = audioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioContext.destination);
+    source.start(0);
+    micAudioSourceRef.current = source;
+  };
 
   useEffect(() => {
     if (!audioRef.current || !currentTrack || !isPlaying) {

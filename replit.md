@@ -29,6 +29,10 @@ Preferred communication style: Simple, everyday language.
 - ✅ Glassmorphism effects throughout the design
 - ✅ Full accessibility support with reduced motion preferences
 - ✅ Video file upload support with automatic audio extraction (MP4, WebM, etc.)
+- ✅ Live microphone streaming - admins can broadcast their voice directly to all listeners
+- ✅ Real-time microphone level visualization during live broadcasts
+- ✅ Browser microphone permission request when going live
+- ✅ Server broadcasts microphone audio to all connected listeners
 
 ## Core Features
 
@@ -169,15 +173,13 @@ Preferred communication style: Simple, everyday language.
 
 ## Known Limitations (MVP)
 
-1. **Live Broadcasting**: The "Go Live" feature provides UI and state management only. Actual microphone input streaming would require WebRTC or a dedicated streaming server implementation.
+1. **Storage**: Currently using in-memory storage. Data is lost on server restart. For production, configure PostgreSQL via `DATABASE_URL` environment variable.
 
-2. **Storage**: Currently using in-memory storage. Data is lost on server restart. For production, configure PostgreSQL via `DATABASE_URL` environment variable.
+2. **Scalability**: In-memory session storage and single-server WebSocket design are suitable for small audiences. Larger deployments would benefit from Redis for sessions and a pub/sub system for WebSocket scaling.
 
-3. **Scalability**: In-memory session storage and single-server WebSocket design are suitable for small audiences. Larger deployments would benefit from Redis for sessions and a pub/sub system for WebSocket scaling.
+3. **Audio Format Support**: Limited to browser-supported formats (MP3, WAV, OGG). Consider adding transcoding for broader format support.
 
-4. **Audio Format Support**: Limited to browser-supported formats (MP3, WAV, OGG). Consider adding transcoding for broader format support.
-
-5. **Mobile Playback**: Some mobile browsers may require user interaction before playing audio. Auto-play policies vary by platform.
+4. **Mobile Playback**: Some mobile browsers may require user interaction before playing audio. Auto-play policies vary by platform.
 
 ## Design Guidelines
 

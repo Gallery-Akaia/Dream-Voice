@@ -303,7 +303,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     ws.on("message", (message) => {
       try {
-        const data = JSON.parse(message.toString());
+        const messageStr = message.toString();
+        const data = JSON.parse(messageStr);
         
         if (data.type === "playback_position") {
           storage.updateRadioState({
@@ -322,6 +323,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: "chat_message",
             username: chatMessage.username,
             text: chatMessage.text,
+          });
+        } else if (data.type === "microphone_audio") {
+          // Broadcast microphone audio to all listening clients
+          broadcastToClients({
+            type: "microphone_audio",
+            data: data.data,
           });
         }
       } catch (error) {
