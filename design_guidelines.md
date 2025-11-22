@@ -1,71 +1,70 @@
-# Radio New Power - Design Guidelines
+# Radio New Power - Design Guidelines (Dynamic Edition)
 
 ## Design Approach
-**Reference-Based: Modern SaaS/Enterprise Platforms**
-Drawing inspiration from Linear, Vercel, and modern productivity tools. This is a utility-focused streaming platform prioritizing functional clarity, professional aesthetics, and real-time synchronization. The design uses sophisticated neutrals with restrained blue accents for a polished, enterprise-grade appearance.
+**Hybrid: Modern SaaS + Dynamic Media Platform**
+Merging Linear's professional restraint with Spotify/Apple Music's dynamic visual language. This is a premium streaming platform that balances functional clarity with captivating motion design. Cool-toned gradients (blues, purples, cyans) create depth without overwhelming, while glassmorphism and subtle particles add premium polish.
 
 ## Core Design Principles
-1. **Professional Restraint**: Understated elegance over visual noise
-2. **Functional Clarity**: Every element serves a purpose
-3. **Generous Space**: Breathing room enhances comprehension
-4. **Subtle Depth**: Elevation through shadows, not color
+1. **Dynamic Sophistication**: Motion serves purpose, not decoration
+2. **Layered Depth**: Glassmorphism creates floating, ethereal interfaces
+3. **Ambient Energy**: Subtle particles and gradients suggest constant activity
+4. **Professional Legibility**: Animations never compromise readability
 
 ---
 
 ## Typography
 - **Primary Font**: Inter (Google Fonts CDN)
-- **Display/Headings**: Inter SemiBold (text-2xl to text-4xl)
-- **Body Text**: Inter Regular (text-base to text-lg)
-- **UI Labels**: Inter Medium (text-sm to text-base)
-- **Micro Text**: Inter Regular (text-xs for metadata)
+- **Display**: Inter SemiBold (text-3xl to text-5xl)
+- **Body**: Inter Regular (text-base to text-lg)
+- **UI Labels**: Inter Medium (text-sm)
+- **Metadata**: Inter Regular (text-xs)
 
 **Hierarchy**:
-- H1: text-4xl font-semibold
-- H2: text-2xl font-semibold
+- H1: text-5xl font-semibold tracking-tight
+- H2: text-3xl font-semibold
 - H3: text-xl font-medium
-- Body: text-base
-- Labels: text-sm font-medium
-- Captions: text-xs text-gray-500
+- Body: text-base leading-relaxed
+- Labels: text-sm font-medium uppercase tracking-wide
 
 ---
 
 ## Layout System
 **Spacing Primitives**: Tailwind units of **2, 4, 6, 8, 12, 16, 24**
-- Micro spacing: gap-2, p-2
-- Standard: p-4, p-6, gap-4
-- Component padding: p-8, p-12
-- Section spacing: py-16, py-24
+- Micro: gap-2, p-2
+- Standard: p-6, gap-4
+- Cards: p-8
+- Sections: py-16, py-24
 
 **Container Strategy**:
-- Listener view: max-w-4xl centered
-- Admin dashboard: Full-width with max-w-7xl inner content
-- Sidebar: w-64 fixed
+- Listener: max-w-6xl centered
+- Admin: Full-width with max-w-7xl content
+- Sidebar: w-72 fixed
 
 ---
 
-## Color Usage (Sophisticated Neutrals + Blue Accents)
-
-**Do NOT specify exact colors** - this is implementation detail. Instead, describe the color strategy:
+## Color Strategy (Cool-Toned Dynamics)
 
 **Foundation**:
-- Background layers in neutral gray spectrum (light to medium tones)
-- White surfaces for content cards/panels
-- Very subtle borders between sections
+- Dark base layers with subtle gradient shifts (deep navy to charcoal)
+- Glassmorphic surfaces with semi-transparent backgrounds
+- Multi-layered gradients transitioning between blues, purples, and cyans
 
 **Accents**:
-- Muted blue for primary actions (play button, go live toggle)
-- Darker blue for hover states
-- Avoid saturated, bright blues - prefer professional, muted tones
+- Cyan for primary actions and live indicators
+- Purple for secondary emphasis and hover states
+- Blue for interactive elements
+- Gradients combine all three in diagonal or radial patterns
 
-**Functional Colors**:
-- Red for live indicators and emergency actions (desaturated, not bright)
-- Gray spectrum for inactive/disabled states
-- Success states use subtle green (rare usage)
+**Glassmorphism Treatment**:
+- Semi-transparent backgrounds (15-25% opacity)
+- Backdrop blur on all floating panels
+- Subtle borders with gradient strokes
+- Inner glow effects on elevated surfaces
 
-**Text Hierarchy**:
-- Primary text in dark gray (not pure black)
-- Secondary text in medium gray
-- Tertiary/metadata in light gray
+**Text on Dynamic Backgrounds**:
+- White primary text with subtle glow/shadow for readability
+- Light cyan/blue for secondary text
+- Ensure contrast even over animated gradients
 
 ---
 
@@ -73,112 +72,130 @@ Drawing inspiration from Linear, Vercel, and modern productivity tools. This is 
 
 ### Listener Interface
 
-**Hero Section** (min-h-[80vh]):
-- Full-width background image (radio equipment, sound waves, or studio environment)
-- Dark gradient overlay for text readability
-- Centered station branding (logo + tagline)
-- Large play/pause button with **blurred background** (backdrop-blur-md)
-- Button positioned center, no hover effects on background blur
-- Subtle live status badge if broadcasting
-- Listener count in corner (small, unobtrusive)
+**Hero Section** (min-h-screen):
+- Animated gradient background (diagonal sweep blues→purples→cyans)
+- Floating particles (20-30 small dots drifting slowly)
+- Real-time audio visualizer bars (bottom third, subtle, responsive to music)
+- Centered station logo with subtle glow
+- Large play button with glassmorphic background (backdrop-blur-xl, semi-transparent)
+- Button background does NOT animate on hover
+- Pulsing live indicator (cyan glow)
+- Listener count in corner with glass panel
 
-**Player Controls Bar** (sticky bottom, full-width):
-- Contained layout (max-w-4xl centered)
-- Elevated card with subtle shadow
-- Track title and artist (left-aligned)
-- Play/pause, volume controls (center)
-- Live indicator with pulsing dot (right)
-- Clean, horizontal arrangement
+**Floating Player Bar** (sticky bottom):
+- Full-width glassmorphic panel with blur
+- Elevated above content with pronounced shadow
+- Mini audio visualizer (left side, compact bars)
+- Track info with marquee scroll for long titles
+- Control buttons with glow on active state
+- Volume with animated fill gradient
+- Live pulse indicator (right)
 
-**Secondary Sections** (below fold):
-- Current Show/Schedule card
-- About the Station section
-- Contact/Social links footer
+**Content Sections** (below hero):
+- Current Show card with glass effect and gradient border
+- Schedule grid with animated gradient on hover
+- About section with parallax subtle background shift
+- Social links footer with icon glow effects
 
 ### Admin Dashboard
 
-**Sidebar Navigation** (w-64, fixed left):
-- Station logo top
-- Nav items: Dashboard, Live Studio, Playlist, Analytics, Settings
-- Active state with subtle blue accent
-- Logout at bottom
-- Minimalist icons (Heroicons via CDN)
+**Animated Sidebar** (w-72, gradient background):
+- Logo with subtle rotation on hover
+- Navigation items with sliding gradient underline on active
+- Icons from Heroicons with scale animation on hover
+- Live status indicator at top (pulsing)
+- Gradient fade at bottom
 
-**Live Studio Panel**:
-- Large "Go Live" toggle button (prominent, cannot miss)
-- Microphone level meter (horizontal bar, real-time)
-- Background music volume slider with percentage
-- Connected listeners count (large number)
-- Emergency broadcast stop (destructive red button)
-- Status cards showing stream health
+**Live Studio Command Center**:
+- Large "GO LIVE" toggle with dramatic gradient shift and glow
+- Real-time waveform visualizer (large, center panel)
+- Microphone input meter with animated gradient fill
+- Background music controls with glassmorphic sliders
+- Connected listeners (huge number with counting animation)
+- Emergency stop button (red glow, pulsing border)
+- Stream health cards with subtle breathing animation
 
 **Playlist Manager**:
-- Upload zone with dashed border
-- Table view of tracks (title, duration, actions)
-- Drag handles for reordering
-- Inline edit and delete actions
-- Clean, data-focused layout
+- Glassmorphic upload zone with animated dashed border
+- Table with alternating row subtle gradients
+- Drag handles with glow on interaction
+- Waveform preview thumbnails for each track
+- Delete/edit buttons with gradient backgrounds
 
-**Dashboard Overview**:
-- Grid of metric cards (2x2 or 3x1)
-- Listening time graph (line chart, minimal styling)
-- Recent activity feed
+**Dashboard Analytics**:
+- Grid of glass cards (3 columns)
+- Animated line charts with gradient fills
+- Real-time listener map (if applicable) with glowing points
+- Activity feed with sliding entrance animations
 
 ---
 
-## Elevation & Depth
+## Animations & Effects
 
-**Shadow System**:
-- Cards: subtle shadow (shadow-sm)
-- Elevated panels: medium shadow (shadow-md)
-- Modals/overlays: pronounced shadow (shadow-lg)
-- No drop-shadows on buttons (use subtle borders instead)
+**Continuous Animations**:
+- Background gradient: 15-second diagonal shift (blues→purples→cyans)
+- Particles: Slow upward drift with random X movement
+- Live indicator: 2-second pulse cycle (scale + glow)
+- Audio visualizer: Respond to frequency data in real-time
 
-**Layering**:
-- Background: neutral gray
-- Surface: white/very light gray cards
-- Interactive elements: slightly elevated from surface
+**Interaction Animations** (200-300ms):
+- Button press: Scale down (0.95) + glow increase
+- Toggle switches: Slide with gradient color morph
+- Card hover: Lift (translateY -4px) + glow intensify
+- Modal entry: Scale up from 0.9 with fade-in
+
+**Loading States**:
+- Skeleton screens with animated gradient shimmer
+- Spinner with rotating gradient border
+
+**Scroll Animations**:
+- Parallax: Background gradients shift slower than content
+- Fade-in sections: Content cards appear with subtle slide-up
 
 ---
 
 ## Images
 
-**Hero Background Image**:
-- **Type**: Professional radio studio environment, sound mixing console, or abstract sound wave visualization
-- **Treatment**: Dark gradient overlay (black opacity 40-60%) for text contrast
-- **Placement**: Full-width, full-height hero section
-- **Content over image**: Station logo, tagline, play button with blurred background
+**Hero Background**:
+- **Type**: Abstract sound wave visualization, DJ equipment in dark studio, or cosmic/space theme with particle effects
+- **Treatment**: Semi-transparent gradient overlay (dark to transparent) to blend with animated gradient
+- **Placement**: Full-screen background, fixed position
+- **Alternative**: Skip image entirely and rely on pure animated gradient background for cleaner effect
 
 **Station Logo**:
-- Modern, minimal wordmark or abstract icon
-- Placement: Hero center (200px width), sidebar top (100px width)
+- Modern wordmark or geometric icon
+- Subtle glow effect applied
+- Hero: 240px width, Sidebar: 120px width
 
-**Admin Dashboard**: No decorative images - focus on data and controls
+**Track Thumbnails** (Playlist Manager):
+- 80px square waveform visualizations or album art placeholders
+- Glassmorphic border treatment
 
 ---
 
-## Key Interactions
+## Glassmorphism Implementation
 
-**Transitions**: All state changes use 200-300ms easing
-- Play/pause: Smooth icon morph
-- Live toggle: Slide animation with color transition
-- Volume sliders: Immediate visual feedback
+**Standard Glass Panel**:
+- Semi-transparent background (white/blue at 15% opacity)
+- Backdrop blur (blur-xl or blur-2xl)
+- 1px gradient border (light cyan to purple)
+- Subtle inner shadow for depth
 
-**Loading States**: Minimal spinners, skeleton screens for content areas
-
-**Focus States**: Blue outline (2px) on keyboard navigation
-
-**Disabled States**: Reduced opacity (50%), no hover effects
+**Elevated Glass (Modals, Player Bar)**:
+- Increased background opacity (20-25%)
+- Stronger blur (blur-3xl)
+- Pronounced shadow beneath
+- Optional outer glow (cyan/purple)
 
 ---
 
 ## Accessibility
-- WCAG AA contrast ratios minimum
-- Keyboard shortcuts: Space (play/pause), M (mute)
-- ARIA labels on all player controls
-- Screen reader announcements for live status changes
-- Focus visible on all interactive elements
+- Maintain WCAG AA contrast on all text over animated backgrounds
+- Reduce motion preference: Disable gradient animations, particles, and visualizers
+- Keyboard focus: Cyan glow outline (3px)
+- Screen reader announcements for live status, track changes
+- All animations respect prefers-reduced-motion media query
 
 ---
 
-This design creates a professional, enterprise-grade streaming platform that feels refined and purposeful. The restrained color palette and generous spacing ensure the interface never feels cluttered, while subtle depth cues guide user attention effectively.
+This design creates a premium, dynamic streaming experience that feels alive and engaging while maintaining professional clarity. The cool-toned palette and glassmorphic depth create modern sophistication, while subtle animations suggest constant energy without overwhelming users.
