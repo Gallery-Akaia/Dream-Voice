@@ -7,10 +7,10 @@ export function useMicrophone() {
   const [error, setError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const onAudioDataRef = useRef<((data: Uint8Array) => void) | null>(null);
 
   const updateMicLevel = useCallback(() => {
@@ -32,14 +32,14 @@ export function useMicrophone() {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: false,
+          autoGainControl: true,
         },
       });
 
       streamRef.current = stream;
       onAudioDataRef.current = onAudioData;
 
-      // Create audio context and analyser
+      // Create audio context for level visualization
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioContextRef.current = audioContext;
 
@@ -47,30 +47,26 @@ export function useMicrophone() {
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 2048;
       source.connect(analyser);
-
       analyserRef.current = analyser;
 
-      // Create script processor for audio chunks
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      
-      processor.onaudioprocess = (event) => {
-        const inputData = event.inputBuffer.getChannelData(0);
-        // Convert float32 to int16
-        const int16Data = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          int16Data[i] = Math.max(-1, Math.min(1, inputData[i])) < 0 
-            ? inputData[i] * 0x8000 
-            : inputData[i] * 0x7FFF;
-        }
-        
-        if (onAudioDataRef.current) {
-          onAudioDataRef.current(new Uint8Array(int16Data.buffer));
+      // Use MediaRecorder for reliable audio capture
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0 && onAudioDataRef.current) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const arrayBuffer = reader.result as ArrayBuffer;
+            onAudioDataRef.current?.(new Uint8Array(arrayBuffer));
+          };
+          reader.readAsArrayBuffer(event.data);
         }
       };
 
-      analyser.connect(processor);
-      processor.connect(audioContext.destination);
-      processorRef.current = processor;
+      mediaRecorder.start(100); // Capture data every 100ms
+      mediaRecorderRef.current = mediaRecorder;
 
       setPermission("granted");
       setIsActive(true);
@@ -84,14 +80,14 @@ export function useMicrophone() {
   }, [updateMicLevel]);
 
   const stopMicrophone = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
-    }
-
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
     }
 
     if (analyserRef.current) {
