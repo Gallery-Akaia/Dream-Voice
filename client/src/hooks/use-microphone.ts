@@ -49,8 +49,8 @@ export function useMicrophone() {
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      // Create script processor for raw audio data
-      const processor = audioContext.createScriptProcessor(2048, 1, 1);
+      // Create script processor for raw audio data with smaller buffer for lower latency
+      const processor = audioContext.createScriptProcessor(512, 1, 1);
       
       processor.onaudioprocess = (event) => {
         const inputData = event.inputBuffer.getChannelData(0);

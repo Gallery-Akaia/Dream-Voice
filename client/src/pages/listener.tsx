@@ -76,7 +76,7 @@ export default function ListenerPage() {
     return () => ws.removeEventListener("message", handleMessage);
   }, [ws, isChatOpen]);
 
-  const playMicrophoneAudio = (audioData: number[]) => {
+  const playMicrophoneAudio = (base64Data: string) => {
     // Ensure audio context and gain node exist
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -89,9 +89,15 @@ export default function ListenerPage() {
     const gainNode = gainNodeRef.current!;
     
     try {
-      // Convert number array to Float32Array
-      const uint8Array = new Uint8Array(audioData);
-      const float32Array = new Float32Array(uint8Array.buffer);
+      // Decode Base64 to binary string
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      // Convert to Float32Array
+      const float32Array = new Float32Array(bytes.buffer);
       
       // Create audio buffer
       const audioBuffer = audioContext.createBuffer(1, float32Array.length, audioContext.sampleRate);
