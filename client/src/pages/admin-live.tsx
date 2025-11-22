@@ -46,11 +46,13 @@ export default function AdminLive() {
 
         ws.onopen = () => {
           // Start microphone capture and stream audio data
-          startMicrophone((audioData) => {
+          startMicrophone((audioData: Float32Array) => {
             if (ws.readyState === WebSocket.OPEN) {
+              // Convert Float32Array to Uint8Array for transmission
+              const uint8Data = new Uint8Array(audioData.buffer, audioData.byteOffset, audioData.byteLength);
               ws.send(JSON.stringify({
                 type: "microphone_audio",
-                data: Array.from(new Uint8Array(audioData)),
+                data: Array.from(uint8Data),
               }));
             }
           });

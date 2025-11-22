@@ -27,7 +27,6 @@ export default function ListenerPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const micAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   const currentTrack = tracks.find((t) => t.id === radioState.currentTrackId);
@@ -76,21 +75,39 @@ export default function ListenerPage() {
   }, [ws, isChatOpen]);
 
   const playMicrophoneAudio = (audioData: number[]) => {
-    // Convert array back to Uint8Array (WebM audio data)
-    const uint8Array = new Uint8Array(audioData);
-    const blob = new Blob([uint8Array], { type: "audio/webm" });
-    const url = URL.createObjectURL(blob);
-
-    if (!micAudioRef.current) {
-      micAudioRef.current = new Audio();
-      micAudioRef.current.volume = isMuted ? 0 : volume[0] / 100;
+    // Ensure audio context exists
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
 
-    const audio = micAudioRef.current;
-    audio.src = url;
-    audio.play().catch((error) => {
+    const audioContext = audioContextRef.current;
+    
+    // Convert number array back to Uint8Array
+    const uint8Array = new Uint8Array(audioData);
+    // Convert to Float32Array
+    const float32Array = new Float32Array(uint8Array.buffer);
+
+    // Create audio buffer
+    try {
+      const audioBuffer = audioContext.createBuffer(1, float32Array.length, audioContext.sampleRate);
+      const channelData = audioBuffer.getChannelData(0);
+      channelData.set(float32Array);
+
+      // Create and play source
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      
+      // Apply volume
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = isMuted ? 0 : volume[0] / 100;
+      
+      source.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      source.start(0);
+    } catch (error) {
       console.error("Microphone audio playback error:", error);
-    });
+    }
   };
 
   useEffect(() => {
@@ -150,11 +167,6 @@ export default function ListenerPage() {
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.volume = isMuted ? 0 : volume[0] / 100;
-  }, [volume, isMuted]);
-
-  useEffect(() => {
-    if (!micAudioRef.current) return;
-    micAudioRef.current.volume = isMuted ? 0 : volume[0] / 100;
   }, [volume, isMuted]);
 
   const togglePlay = () => {

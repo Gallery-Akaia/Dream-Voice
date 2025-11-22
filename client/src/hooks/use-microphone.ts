@@ -10,8 +10,8 @@ export function useMicrophone() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const onAudioDataRef = useRef<((data: Uint8Array) => void) | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const onAudioDataRef = useRef<((data: Float32Array) => void) | null>(null);
 
   const updateMicLevel = useCallback(() => {
     if (!analyserRef.current) return;
@@ -25,7 +25,7 @@ export function useMicrophone() {
     animationFrameRef.current = requestAnimationFrame(updateMicLevel);
   }, []);
 
-  const startMicrophone = useCallback(async (onAudioData: (data: Uint8Array) => void) => {
+  const startMicrophone = useCallback(async (onAudioData: (data: Float32Array) => void) => {
     try {
       setError(null);
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -39,7 +39,7 @@ export function useMicrophone() {
       streamRef.current = stream;
       onAudioDataRef.current = onAudioData;
 
-      // Create audio context for level visualization
+      // Create audio context
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioContextRef.current = audioContext;
 
@@ -49,24 +49,20 @@ export function useMicrophone() {
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      // Use MediaRecorder for reliable audio capture
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus",
-      });
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && onAudioDataRef.current) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const arrayBuffer = reader.result as ArrayBuffer;
-            onAudioDataRef.current?.(new Uint8Array(arrayBuffer));
-          };
-          reader.readAsArrayBuffer(event.data);
+      // Create script processor for raw audio data
+      const processor = audioContext.createScriptProcessor(2048, 1, 1);
+      
+      processor.onaudioprocess = (event) => {
+        const inputData = event.inputBuffer.getChannelData(0);
+        // Send a copy of the float32 audio data
+        if (onAudioDataRef.current) {
+          onAudioDataRef.current(new Float32Array(inputData));
         }
       };
 
-      mediaRecorder.start(100); // Capture data every 100ms
-      mediaRecorderRef.current = mediaRecorder;
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+      processorRef.current = processor;
 
       setPermission("granted");
       setIsActive(true);
@@ -80,9 +76,9 @@ export function useMicrophone() {
   }, [updateMicLevel]);
 
   const stopMicrophone = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current = null;
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
     }
 
     if (streamRef.current) {
