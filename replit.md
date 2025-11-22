@@ -23,6 +23,12 @@ Preferred communication style: Simple, everyday language.
 - ✅ Static file serving for audio uploads via /uploads route
 - ✅ Improved client-side synchronization with 0.5s drift threshold
 - ✅ Periodic sync checks every 2 seconds during playback
+- ✅ Animated gradients with cool-toned colors (blues, purples, cyans)
+- ✅ Floating particle effects for visual ambiance
+- ✅ Audio visualizer component with dynamic soundwave animations
+- ✅ Glassmorphism effects throughout the design
+- ✅ Full accessibility support with reduced motion preferences
+- ✅ Video file upload support with automatic audio extraction (MP4, WebM, etc.)
 
 ## Core Features
 
@@ -37,7 +43,8 @@ Preferred communication style: Simple, everyday language.
 ### Admin Dashboard
 - **Secure Authentication**: Session-based login with bcrypt password hashing
 - **Playlist Manager**: 
-  - Drag-and-drop audio file upload (MP3, WAV, OGG)
+  - Drag-and-drop audio and video file upload (MP3, WAV, OGG, MP4, WebM, etc.)
+  - Automatic audio extraction from video files (using FFmpeg)
   - Automatic metadata extraction (duration, title, artist)
   - Track list with delete functionality
   - File validation (50MB max file size)
@@ -128,7 +135,10 @@ Preferred communication style: Simple, everyday language.
 **Audio Files:**
 - Stored in `/uploads` directory
 - Filename format: `{timestamp}-{random}.{ext}`
-- Validated file types: audio/mpeg, audio/mp3, audio/wav, audio/ogg
+- Validated file types: 
+  - Audio: audio/mpeg, audio/mp3, audio/wav, audio/ogg, audio/aac, audio/flac
+  - Video: video/mp4, video/webm, video/quicktime, video/x-msvideo, video/mpeg
+- Video files are automatically converted to MP3 audio format
 - Maximum file size: 50MB
 - Metadata extracted on upload (duration, title, artist)
 - Files deleted from disk when track is removed from playlist

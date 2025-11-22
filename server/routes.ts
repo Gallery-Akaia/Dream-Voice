@@ -6,6 +6,7 @@ import multer from "multer";
 import path from "path";
 import bcrypt from "bcrypt";
 import { parseFile } from "music-metadata";
+import { execSync } from "child_process";
 import { storage } from "./storage";
 import { insertAudioTrackSchema, insertUserSchema } from "@shared/schema";
 import type { RadioState } from "@shared/schema";
@@ -24,11 +25,13 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg"];
+    const allowedAudioTypes = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg", "audio/aac", "audio/flac"];
+    const allowedVideoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/mpeg"];
+    const allowedTypes = [...allowedAudioTypes, ...allowedVideoTypes];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type. Only audio files are allowed."));
+      cb(new Error("Invalid file type. Audio or video files are allowed."));
     }
   },
 });
@@ -130,13 +133,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
+      const fs = await import("fs/promises");
+      let audioFilePath = req.file.path;
+      let audioFilename = req.file.filename;
+      let isVideo = req.file.mimetype.startsWith("video/");
+
+      // If it's a video, extract audio
+      if (isVideo) {
+        try {
+          const audioFilenameWithoutExt = audioFilename.replace(/\.[^/.]+$/, "");
+          const newAudioFilename = audioFilenameWithoutExt + ".mp3";
+          const newAudioPath = path.join(process.cwd(), "uploads", newAudioFilename);
+
+          // Use FFmpeg to extract audio
+          execSync(`ffmpeg -i "${audioFilePath}" -q:a 0 -map a "${newAudioPath}" -y -loglevel quiet`);
+
+          // Delete the original video file
+          await fs.unlink(audioFilePath);
+
+          // Update paths to the new audio file
+          audioFilePath = newAudioPath;
+          audioFilename = newAudioFilename;
+        } catch (ffmpegError) {
+          console.error("Failed to extract audio from video:", ffmpegError);
+          await fs.unlink(req.file.path).catch(() => {});
+          return res.status(400).json({ error: "Failed to extract audio from video. Please try a different file." });
+        }
+      }
+
       let metadata;
       let duration = 0;
       let title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
       let artist = req.body.artist || null;
 
       try {
-        metadata = await parseFile(req.file.path);
+        metadata = await parseFile(audioFilePath);
         if (metadata.format.duration) {
           duration = Math.floor(metadata.format.duration);
         }
@@ -152,8 +183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (duration === 0) {
-        const fs = await import("fs/promises");
-        await fs.unlink(req.file.path);
+        await fs.unlink(audioFilePath);
         return res.status(400).json({ error: "Invalid audio file: duration cannot be determined" });
       }
 
@@ -161,7 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         title,
         artist,
         duration,
-        fileUrl: `/uploads/${req.file.filename}`,
+        fileUrl: `/uploads/${audioFilename}`,
         order: (await storage.getAllTracks()).length,
       });
 
