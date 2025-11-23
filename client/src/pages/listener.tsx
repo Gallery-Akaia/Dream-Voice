@@ -30,6 +30,7 @@ export default function ListenerPage() {
   const micAudioContextRef = useRef<AudioContext | null>(null);
   const micGainNodeRef = useRef<GainNode | null>(null);
   const micNextStartTimeRef = useRef(0);
+  const playMicrophoneAudioRef = useRef<((base64Data: string) => Promise<void>) | null>(null);
 
   const currentTrack = tracks.find((t) => t.id === radioState.currentTrackId);
 
@@ -102,6 +103,11 @@ export default function ListenerPage() {
     }
   }, [initMicAudioContext]);
 
+  // Store the callback in ref so WebSocket handler can always access latest version
+  useEffect(() => {
+    playMicrophoneAudioRef.current = playMicrophoneAudio;
+  }, [playMicrophoneAudio]);
+
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
@@ -134,9 +140,11 @@ export default function ListenerPage() {
           setChatMessages(prev => [...prev.slice(-49), newMessage]);
           setUnreadCount(prev => prev + 1);
         } else if (data.type === "microphone_audio") {
-          // Play microphone audio from admin
+          // Play microphone audio from admin using ref to avoid recreating listener
           console.log("Received microphone audio chunk");
-          playMicrophoneAudio(data.data);
+          if (playMicrophoneAudioRef.current) {
+            playMicrophoneAudioRef.current(data.data);
+          }
         }
       } catch (error) {
         console.error("WebSocket message error:", error);
@@ -145,7 +153,7 @@ export default function ListenerPage() {
 
     ws.addEventListener("message", handleMessage);
     return () => ws.removeEventListener("message", handleMessage);
-  }, [ws, playMicrophoneAudio]);
+  }, [ws]);
 
   useEffect(() => {
     if (!audioRef.current || !currentTrack || !isPlaying) {
