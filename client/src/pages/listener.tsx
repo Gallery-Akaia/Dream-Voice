@@ -79,7 +79,7 @@ export default function ListenerPage() {
       // Create or reuse mic audio element
       if (!micAudioRef.current) {
         micAudioRef.current = new Audio();
-        micAudioRef.current.volume = isMuted ? 0 : volume[0] / 100;
+        micAudioRef.current.volume = isMuted ? 0 : 1;
       }
 
       // Convert Base64 to blob
@@ -162,8 +162,8 @@ export default function ListenerPage() {
 
   useEffect(() => {
     if (!micAudioRef.current) return;
-    micAudioRef.current.volume = isMuted ? 0 : volume[0] / 100;
-  }, [volume, isMuted]);
+    micAudioRef.current.volume = isMuted ? 0 : 1;
+  }, [isMuted]);
 
   const togglePlay = () => {
     if (!isConnected || !currentTrack) return;
