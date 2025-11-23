@@ -55,8 +55,8 @@ export function useMicrophone() {
         }
       };
 
-      // Request audio data every 100ms for ultra-low latency
-      recorder.start(100);
+      // Request audio data every 250ms for smoother streaming
+      recorder.start(250);
 
       // Set up analyser for mic level visualization
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();

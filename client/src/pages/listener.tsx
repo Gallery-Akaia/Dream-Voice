@@ -90,7 +90,15 @@ export default function ListenerPage() {
       
       console.log("Scheduled audio chunk, duration:", audioBuffer.duration, "startTime:", startTime);
     } catch (error) {
-      console.error("Microphone audio playback error:", error);
+      console.error("Microphone audio playback error:", {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        base64Length: base64Data?.length,
+        audioContextState: micAudioContextRef.current?.state,
+        currentTime: micAudioContextRef.current?.currentTime,
+        nextStartTime: micNextStartTimeRef.current,
+      });
     }
   }, [initMicAudioContext]);
 
@@ -203,6 +211,13 @@ export default function ListenerPage() {
     const volumeLevel = isMuted ? 0 : volume[0] / 100;
     micGainNodeRef.current.gain.value = volumeLevel;
   }, [isMuted, volume]);
+
+  useEffect(() => {
+    if (radioState.isLive) {
+      micNextStartTimeRef.current = 0;
+      console.log("Admin went live - reset microphone scheduling");
+    }
+  }, [radioState.isLive]);
 
   const togglePlay = () => {
     if (!isConnected || !currentTrack) return;
