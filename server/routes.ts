@@ -326,6 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         } else if (data.type === "microphone_audio") {
           // Broadcast microphone audio immediately to all listeners
+          console.log("Broadcasting microphone audio chunk, data length:", data.data?.length || 0);
           broadcastToClients({
             type: "microphone_audio",
             data: data.data,

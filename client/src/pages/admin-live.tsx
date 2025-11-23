@@ -44,18 +44,23 @@ export default function AdminLive() {
         const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
         wsRef.current = ws;
 
-        ws.onopen = () => {
+        ws.onopen = async () => {
           // Start microphone capture and stream compressed audio
           startMicrophone((audioBlob: Blob) => {
+            // Convert blob to Base64 synchronously and send immediately
             if (ws.readyState === WebSocket.OPEN) {
-              // Read blob as Base64 and send immediately
+              // Use FileReader since arrayBuffer is async and can cause queueing
               const reader = new FileReader();
               reader.onload = () => {
-                const base64Data = (reader.result as string).split(",")[1];
+                const base64 = (reader.result as string).split(",")[1];
+                console.log("Sending audio chunk, size:", base64.length);
                 ws.send(JSON.stringify({
                   type: "microphone_audio",
-                  data: base64Data,
+                  data: base64,
                 }));
+              };
+              reader.onerror = () => {
+                console.error("FileReader error");
               };
               reader.readAsDataURL(audioBlob);
             }

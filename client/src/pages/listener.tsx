@@ -58,11 +58,10 @@ export default function ListenerPage() {
             timestamp: Date.now(),
           };
           setChatMessages(prev => [...prev.slice(-49), newMessage]);
-          if (!isChatOpen) {
-            setUnreadCount(prev => prev + 1);
-          }
+          setUnreadCount(prev => prev + 1);
         } else if (data.type === "microphone_audio") {
           // Play microphone audio from admin
+          console.log("Received microphone audio chunk");
           playMicrophoneAudio(data.data);
         }
       } catch (error) {
@@ -72,10 +71,12 @@ export default function ListenerPage() {
 
     ws.addEventListener("message", handleMessage);
     return () => ws.removeEventListener("message", handleMessage);
-  }, [ws, isChatOpen]);
+  }, [ws]);
 
   const playMicrophoneAudio = (base64Data: string) => {
     try {
+      console.log("Playing microphone audio, base64 length:", base64Data.length);
+      
       // Create or reuse mic audio element
       if (!micAudioRef.current) {
         micAudioRef.current = new Audio();
@@ -89,13 +90,20 @@ export default function ListenerPage() {
         bytes[i] = binaryString.charCodeAt(i);
       }
       
+      console.log("Created byte array, size:", bytes.length);
+      
       // Create blob URL and play
       const blob = new Blob([bytes], { type: "audio/webm" });
       const url = URL.createObjectURL(blob);
+      console.log("Blob URL created, attempting to play");
+      
       micAudioRef.current.src = url;
-      micAudioRef.current.play().catch(() => {
-        // Ignore autoplay errors on some browsers
-      });
+      const playPromise = micAudioRef.current.play();
+      if (playPromise) {
+        playPromise.catch((err) => {
+          console.error("Autoplay error:", err.message);
+        });
+      }
     } catch (error) {
       console.error("Microphone audio playback error:", error);
     }
