@@ -33,6 +33,16 @@ export default function AdminLive() {
     },
   });
 
+  useEffect(() => {
+    return () => {
+      stopMicrophone();
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [stopMicrophone]);
+
   const handleGoLive = async () => {
     const newLiveState = !radioState?.isLive;
     
@@ -84,7 +94,7 @@ export default function AdminLive() {
       } catch (err) {
         toast({
           title: "Microphone Error",
-          description: error || "Failed to access microphone",
+          description: err instanceof Error ? err.message : "Failed to access microphone",
           variant: "destructive",
         });
       }
@@ -115,6 +125,12 @@ export default function AdminLive() {
   };
 
   const handleEmergencyStop = () => {
+    stopMicrophone();
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
     updateLiveMutation.mutate(
       { isLive: false },
       {
