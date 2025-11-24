@@ -25,7 +25,7 @@ export default function AdminLoginPage() {
       
       toast({
         title: "Login successful",
-        description: "Welcome to Radio Dream Voice admin panel",
+        description: "Welcome to RADIO DREAM VOICE admin panel",
       });
       
       setLocation("/admin/dashboard");
@@ -54,7 +54,7 @@ export default function AdminLoginPage() {
           <div>
             <CardTitle className="text-2xl">Admin Login</CardTitle>
             <CardDescription>
-              Sign in to manage Radio Dream Voice
+              Sign in to manage RADIO DREAM VOICE
             </CardDescription>
           </div>
         </CardHeader>

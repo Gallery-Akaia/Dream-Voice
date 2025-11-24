@@ -1,4 +1,4 @@
-# Radio Dream Voice - Design Guidelines (Dynamic Edition)
+# RADIO DREAM VOICE - Design Guidelines (Dynamic Edition)
 
 ## Design Approach
 **Hybrid: Modern SaaS + Dynamic Media Platform**
