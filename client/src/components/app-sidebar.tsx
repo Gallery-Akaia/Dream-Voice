@@ -58,7 +58,7 @@ export function AppSidebar() {
               <Radio className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <h2 className="font-semibold text-base">Radio New Voice</h2>
+              <h2 className="font-semibold text-base">Radio Dream Voice</h2>
               <p className="text-xs text-muted-foreground">Admin Panel</p>
             </div>
           </div>

@@ -28,7 +28,7 @@ export default function AdminDashboard() {
           Dashboard
         </h1>
         <p className="text-muted-foreground mt-1">
-          Welcome to Radio New Voice admin panel
+          Welcome to Radio Dream Voice admin panel
         </p>
       </div>
 
