@@ -1,8 +1,8 @@
-# Radio New Power
+# Radio New Voice
 
 ## Overview
 
-Radio New Power is a 24/7 streaming radio application with synchronized playback across all listeners. The platform features a public-facing listener interface and a comprehensive admin panel for managing broadcasts, playlists, and live streaming controls. The system maintains real-time synchronization through WebSocket connections, ensuring all listeners hear the same audio at the same position simultaneously.
+Radio New Voice is a 24/7 streaming radio application with synchronized playback across all listeners. The platform features a public-facing listener interface and a comprehensive admin panel for managing broadcasts, playlists, and live streaming controls. The system maintains real-time synchronization through WebSocket connections, ensuring all listeners hear the same audio at the same position simultaneously.
 
 **Project Status:** MVP Complete - Core features functional, ready for testing and deployment
 
