@@ -346,7 +346,7 @@ export default function ListenerPage() {
                 style={{ color: "rgba(255, 255, 255, 0.95)", textShadow: "0 2px 20px rgba(0, 0, 0, 0.5), 0 0 40px rgba(59, 130, 246, 0.3)" }}
                 data-testid="text-station-name"
               >
-                Radio New Power
+                RADIO DREAM VOICE
               </h1>
               <p 
                 className="text-xl" 
