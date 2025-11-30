@@ -26,7 +26,56 @@ export function useMicrophone() {
     animationFrameRef.current = requestAnimationFrame(updateMicLevel);
   }, []);
 
+  const cleanupAudio = useCallback(() => {
+    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+      try {
+        recorderRef.current.stop();
+      } catch (e) {
+        // Ignore stop errors
+      }
+      recorderRef.current = null;
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (analyserRef.current) {
+      try {
+        analyserRef.current.disconnect();
+      } catch (e) {
+        // Ignore disconnect errors
+      }
+      analyserRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      try {
+        if (audioContextRef.current.state !== 'closed') {
+          audioContextRef.current.close();
+        }
+      } catch (e) {
+        // Ignore close errors on some browsers
+      }
+      audioContextRef.current = null;
+    }
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    setIsActive(false);
+    setMicLevel(0);
+    setCurrentDeviceId(null);
+    onAudioDataRef.current = null;
+  }, []);
+
   const startMicrophone = useCallback(async (onAudioData: (data: Blob) => void, deviceId?: string | null) => {
+    // Clean up any existing stream first
+    cleanupAudio();
+    
     try {
       setError(null);
       
@@ -42,9 +91,28 @@ export function useMicrophone() {
         audioConstraints.deviceId = { exact: savedDeviceId };
       }
       
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: audioConstraints,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints,
+        });
+      } catch (deviceErr) {
+        // If exact device failed, try without device constraint as fallback
+        if (savedDeviceId && deviceErr instanceof Error && 
+            (deviceErr.name === 'OverconstrainedError' || deviceErr.message.includes('not found'))) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+          // Clear the invalid saved device
+          localStorage.removeItem("selectedAudioDevice");
+        } else {
+          throw deviceErr;
+        }
+      }
       
       const activeTrack = stream.getAudioTracks()[0];
       const settings = activeTrack?.getSettings();
@@ -73,65 +141,59 @@ export function useMicrophone() {
       recorder.start(250);
 
       // Set up analyser for mic level visualization
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      audioContextRef.current = audioContext;
-      
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
-      analyserRef.current = analyser;
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        const audioContext = new AudioContextClass();
+        audioContextRef.current = audioContext;
+        
+        // Resume if suspended (required on some mobile browsers)
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+        
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        analyserRef.current = analyser;
+        
+        updateMicLevel();
+      }
 
       setPermission("granted");
       setIsActive(true);
-      updateMicLevel();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to access microphone";
+      // Clean up on error
+      cleanupAudio();
+      
+      let message = "Failed to access microphone";
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError' || err.message.includes('Permission')) {
+          message = "Microphone permission was denied. Please allow access in your browser settings.";
+        } else if (err.name === 'NotFoundError' || err.message.includes('not found')) {
+          message = "No microphone found. Please connect a microphone and try again.";
+        } else if (err.name === 'NotReadableError' || err.message.includes('in use')) {
+          message = "Microphone is being used by another app. Please close other apps using the microphone.";
+        } else {
+          message = err.message;
+        }
+      }
       setError(message);
       setPermission("denied");
       setIsActive(false);
     }
-  }, [updateMicLevel]);
+  }, [updateMicLevel, cleanupAudio]);
 
-  const stopMicrophone = useCallback(() => {
-    if (recorderRef.current && recorderRef.current.state !== "inactive") {
-      recorderRef.current.stop();
-      recorderRef.current = null;
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-
-    if (analyserRef.current) {
-      analyserRef.current.disconnect();
-      analyserRef.current = null;
-    }
-
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-
-    setIsActive(false);
-    setMicLevel(0);
-    setCurrentDeviceId(null);
-    onAudioDataRef.current = null;
-  }, []);
+  const stopMicrophone = cleanupAudio;
 
   useEffect(() => {
     return () => {
-      if (isActive) {
-        stopMicrophone();
+      // Always cleanup on unmount - check refs directly instead of state
+      if (streamRef.current || recorderRef.current || audioContextRef.current) {
+        cleanupAudio();
       }
     };
-  }, []);
+  }, [cleanupAudio]);
 
   return {
     isActive,
