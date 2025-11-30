@@ -5,6 +5,7 @@ export function useMicrophone() {
   const [permission, setPermission] = useState<"granted" | "denied" | "prompt">("prompt");
   const [micLevel, setMicLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -25,16 +26,29 @@ export function useMicrophone() {
     animationFrameRef.current = requestAnimationFrame(updateMicLevel);
   }, []);
 
-  const startMicrophone = useCallback(async (onAudioData: (data: Blob) => void) => {
+  const startMicrophone = useCallback(async (onAudioData: (data: Blob) => void, deviceId?: string | null) => {
     try {
       setError(null);
+      
+      const savedDeviceId = deviceId || localStorage.getItem("selectedAudioDevice");
+      
+      const audioConstraints: MediaTrackConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      };
+      
+      if (savedDeviceId) {
+        audioConstraints.deviceId = { exact: savedDeviceId };
+      }
+      
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+        audio: audioConstraints,
       });
+      
+      const activeTrack = stream.getAudioTracks()[0];
+      const settings = activeTrack?.getSettings();
+      setCurrentDeviceId(settings?.deviceId || null);
 
       streamRef.current = stream;
       onAudioDataRef.current = onAudioData;
@@ -107,6 +121,7 @@ export function useMicrophone() {
 
     setIsActive(false);
     setMicLevel(0);
+    setCurrentDeviceId(null);
     onAudioDataRef.current = null;
   }, []);
 
@@ -123,6 +138,7 @@ export function useMicrophone() {
     permission,
     micLevel,
     error,
+    currentDeviceId,
     startMicrophone,
     stopMicrophone,
   };

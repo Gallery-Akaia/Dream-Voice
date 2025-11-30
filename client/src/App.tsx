@@ -13,6 +13,7 @@ import AdminLoginPage from "@/pages/admin-login";
 import AdminDashboard from "@/pages/admin-dashboard";
 import AdminAnalytics from "@/pages/admin-analytics";
 import AdminPlaylist from "@/pages/admin-playlist";
+import AdminAudioSources from "@/pages/admin-audio-sources";
 import AdminLive from "@/pages/admin-live";
 
 function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -58,6 +59,11 @@ function Router() {
       <Route path="/admin/playlist">
         <AdminLayout>
           <AdminPlaylist />
+        </AdminLayout>
+      </Route>
+      <Route path="/admin/audio-sources">
+        <AdminLayout>
+          <AdminAudioSources />
         </AdminLayout>
       </Route>
       <Route path="/admin/live">

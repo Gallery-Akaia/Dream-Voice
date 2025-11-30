@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Radio, Music, Mic, LogOut, LayoutDashboard } from "lucide-react";
+import { Radio, Music, Mic, LogOut, LayoutDashboard, Settings2 } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -33,6 +33,12 @@ const menuItems = [
     url: "/admin/playlist",
     icon: Music,
     testId: "link-playlist",
+  },
+  {
+    title: "Audio Sources",
+    url: "/admin/audio-sources",
+    icon: Settings2,
+    testId: "link-audio-sources",
   },
   {
     title: "Live Controls",

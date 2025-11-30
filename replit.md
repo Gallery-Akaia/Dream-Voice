@@ -10,7 +10,16 @@ RADIO DREAM VOICE is a 24/7 streaming radio application with synchronized playba
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (November 22, 2025)
+## Recent Changes (November 30, 2025)
+
+- ✅ Audio Sources admin page for connecting external mixers and audio devices
+- ✅ Device enumeration to show all available audio input devices
+- ✅ Device selection and persistence (saved to localStorage)
+- ✅ Audio level testing before going live
+- ✅ Integration with Live Controls to use selected audio source
+- ✅ Automatic device detection when connecting/disconnecting equipment
+
+## Previous Changes (November 22, 2025)
 
 - ✅ Complete frontend implementation with beautiful design using Inter font
 - ✅ Full backend with Express API, WebSocket server, audio file uploads
@@ -52,11 +61,18 @@ Preferred communication style: Simple, everyday language.
   - Automatic metadata extraction (duration, title, artist)
   - Track list with delete functionality
   - File validation (50MB max file size)
+- **Audio Sources**:
+  - Connect external mixers, USB audio interfaces, or any audio input device
+  - Device enumeration showing all available audio inputs
+  - Device selection with persistence (remembered on page reload)
+  - Audio level testing to verify device is working before going live
+  - Automatic detection when devices are connected/disconnected
 - **Live Control Panel**:
   - Go Live toggle to switch between automated and live mode
+  - Shows currently selected audio source
   - Background music volume slider
   - Listener count display
-- **Sidebar Navigation**: Easy access to Dashboard, Playlist, and Live controls
+- **Sidebar Navigation**: Easy access to Dashboard, Playlist, Audio Sources, and Live controls
 
 ## System Architecture
 
@@ -169,6 +185,7 @@ Preferred communication style: Simple, everyday language.
 - `/admin` or `/admin/login` - Admin login page
 - `/admin/dashboard` - Dashboard overview
 - `/admin/playlist` - Playlist management
+- `/admin/audio-sources` - Audio device configuration (connect mixers, interfaces)
 - `/admin/live` - Live broadcasting controls
 
 ## Known Limitations (MVP)

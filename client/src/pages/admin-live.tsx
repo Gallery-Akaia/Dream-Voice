@@ -5,19 +5,26 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { LiveIndicator } from "@/components/live-indicator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mic, Radio, Users, Volume2, AlertCircle } from "lucide-react";
+import { Mic, Radio, Users, Volume2, AlertCircle, Settings2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMicrophone } from "@/hooks/use-microphone";
+import { useAudioDevices } from "@/hooks/use-audio-devices";
 import { useRef, useEffect } from "react";
+import { Link } from "wouter";
 import type { RadioState } from "@shared/schema";
 
 export default function AdminLive() {
   const { toast } = useToast();
-  const { isActive, micLevel, error, startMicrophone, stopMicrophone } = useMicrophone();
+  const { isActive, micLevel, error, currentDeviceId, startMicrophone, stopMicrophone } = useMicrophone();
+  const { devices, selectedDeviceId } = useAudioDevices();
   const wsRef = useRef<WebSocket | null>(null);
+  
+  const selectedDevice = devices.find(d => d.deviceId === selectedDeviceId);
+  const activeDevice = currentDeviceId ? devices.find(d => d.deviceId === currentDeviceId) : null;
 
   const { data: radioState, isLoading } = useQuery<RadioState>({
     queryKey: ["/api/radio/state"],
@@ -254,14 +261,44 @@ export default function AdminLive() {
           <CardContent className="space-y-6">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Audio Source</Label>
+                <Link href="/admin/audio-sources">
+                  <Button variant="ghost" size="sm" data-testid="button-configure-audio">
+                    <Settings2 className="w-4 h-4 mr-1" />
+                    Configure
+                  </Button>
+                </Link>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
+                <div className="p-2 rounded-md bg-primary/10">
+                  <Mic className="w-4 h-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" data-testid="text-selected-device">
+                    {selectedDevice?.label || "Default Audio Input"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {isActive && activeDevice 
+                      ? `Broadcasting from: ${activeDevice.label}` 
+                      : "Selected for broadcast"}
+                  </p>
+                </div>
+                {isActive && (
+                  <Badge variant="default" className="shrink-0">Active</Badge>
+                )}
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
                 <Label htmlFor="mic-level" className="text-sm font-medium">
-                  Microphone Input
+                  Input Level
                 </Label>
                 <span className="text-sm text-muted-foreground">{isActive ? `${micLevel}%` : "Inactive"}</span>
               </div>
               <Progress value={isActive ? micLevel : 0} className="h-2" id="mic-level" />
               <p className="text-xs text-muted-foreground">
-                {isActive ? "Microphone is active" : "Microphone inactive"}
+                {isActive ? "Audio is being captured" : "Start broadcast to see audio levels"}
               </p>
             </div>
 
@@ -298,8 +335,8 @@ export default function AdminLive() {
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          When you go live, all listeners will hear your microphone input. The background
-          music will automatically adjust to your selected volume level.
+          When you go live, all listeners will hear audio from your selected source. Configure
+          your mixer or audio device in the <Link href="/admin/audio-sources" className="font-medium underline underline-offset-4" data-testid="link-audio-sources-inline">Audio Sources</Link> settings.
         </AlertDescription>
       </Alert>
     </div>
