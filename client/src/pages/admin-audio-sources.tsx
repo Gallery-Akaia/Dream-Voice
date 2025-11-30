@@ -219,13 +219,13 @@ export default function AdminAudioSources() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight" data-testid="text-audio-sources-title">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight" data-testid="text-audio-sources-title">
             Audio Sources
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-muted-foreground mt-1 text-sm sm:text-base">
             Connect your mixer or audio device for broadcasting
           </p>
         </div>
@@ -234,6 +234,7 @@ export default function AdminAudioSources() {
           size="sm"
           onClick={refreshDevices}
           disabled={isLoading}
+          className="self-start"
           data-testid="button-refresh-devices"
         >
           <RefreshCw className="w-4 h-4 mr-2" />
@@ -243,12 +244,13 @@ export default function AdminAudioSources() {
 
       {!hasPermission && (
         <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>Permission required to access audio devices</span>
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+            <span className="text-sm">Permission required to access audio devices</span>
             <Button
               size="sm"
               onClick={requestPermission}
+              className="self-start sm:self-auto"
               data-testid="button-request-permission"
             >
               Grant Permission
@@ -266,20 +268,20 @@ export default function AdminAudioSources() {
 
       <div className="grid gap-4">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="w-5 h-5" />
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <Zap className="w-5 h-5 flex-shrink-0" />
               Smart Audio Switching
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm">
               Automatically switch between your phone's microphone and external audio sources
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
+            <div className="flex items-start sm:items-center justify-between gap-3">
+              <div className="space-y-1 flex-1 min-w-0">
                 <Label className="text-sm font-medium">Auto-switch audio source</Label>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   When enabled, automatically uses external devices (mixer, USB audio) when connected. 
                   Falls back to built-in mic when disconnected.
                 </p>
@@ -287,6 +289,7 @@ export default function AdminAudioSources() {
               <Switch
                 checked={autoSwitch}
                 onCheckedChange={handleAutoSwitchToggle}
+                className="flex-shrink-0"
                 data-testid="switch-auto-audio"
               />
             </div>
@@ -298,8 +301,8 @@ export default function AdminAudioSources() {
             }`}>
               {hasExternalDevice ? (
                 <>
-                  <Cable className="w-5 h-5" />
-                  <div>
+                  <Cable className="w-5 h-5 flex-shrink-0" />
+                  <div className="min-w-0">
                     <p className="text-sm font-medium">External device connected</p>
                     <p className="text-xs opacity-80">
                       {autoSwitch ? "Using external audio source" : "Manual selection active"}
@@ -308,8 +311,8 @@ export default function AdminAudioSources() {
                 </>
               ) : (
                 <>
-                  <Smartphone className="w-5 h-5" />
-                  <div>
+                  <Smartphone className="w-5 h-5 flex-shrink-0" />
+                  <div className="min-w-0">
                     <p className="text-sm font-medium">No external device detected</p>
                     <p className="text-xs opacity-80">
                       {autoSwitch ? "Using built-in microphone" : "Connect a mixer or audio interface"}
@@ -341,7 +344,7 @@ export default function AdminAudioSources() {
               devices.map((device, index) => (
                 <div
                   key={device.deviceId}
-                  className={`flex items-center justify-between p-4 rounded-lg border transition-colors cursor-pointer hover-elevate ${
+                  className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 rounded-lg border transition-colors cursor-pointer hover-elevate active:scale-[0.98] ${
                     selectedDeviceId === device.deviceId
                       ? "border-primary bg-primary/5"
                       : "border-border"
@@ -349,8 +352,8 @@ export default function AdminAudioSources() {
                   onClick={() => handleSelectDevice(device)}
                   data-testid={`device-item-${index}`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`p-2 rounded-md ${
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                    <div className={`p-2 rounded-md flex-shrink-0 ${
                       selectedDeviceId === device.deviceId
                         ? "bg-primary text-primary-foreground"
                         : device.isExternal 
@@ -359,28 +362,28 @@ export default function AdminAudioSources() {
                     }`}>
                       {getDeviceIcon(device)}
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{device.label}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm sm:text-base truncate max-w-[200px] sm:max-w-none">{device.label}</p>
                         {device.isExternal && (
-                          <Badge variant="outline" className="text-xs px-1.5 py-0">
+                          <Badge variant="outline" className="text-xs px-1.5 py-0 flex-shrink-0 hidden sm:inline-flex">
                             External
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">{getDeviceType(device)}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">{getDeviceType(device)}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 mt-2 sm:mt-0 ml-11 sm:ml-0">
                     <Badge 
                       variant={selectedDeviceId === device.deviceId ? "default" : "secondary"}
-                      className={device.isExternal && selectedDeviceId !== device.deviceId ? "bg-accent/50" : ""}
+                      className={`text-xs ${device.isExternal && selectedDeviceId !== device.deviceId ? "bg-accent/50" : ""}`}
                     >
                       {device.isExternal ? "External" : "Built-in"}
                     </Badge>
                     {selectedDeviceId === device.deviceId && (
-                      <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                        <Check className="w-4 h-4 text-primary-foreground" />
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                        <Check className="w-3 h-3 sm:w-4 sm:h-4 text-primary-foreground" />
                       </div>
                     )}
                   </div>
@@ -391,17 +394,17 @@ export default function AdminAudioSources() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Test Audio Input</CardTitle>
-            <CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg sm:text-xl">Test Audio Input</CardTitle>
+            <CardDescription className="text-sm">
               Test your selected device to make sure it's working before going live
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0 flex-1">
                 <Label className="text-sm font-medium">Selected Device</Label>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   {selectedDeviceId
                     ? devices.find((d) => d.deviceId === selectedDeviceId)?.label || "Unknown device"
                     : "No device selected"}
@@ -411,6 +414,7 @@ export default function AdminAudioSources() {
                 variant={isTesting ? "destructive" : "default"}
                 onClick={isTesting ? stopTest : startTest}
                 disabled={!selectedDeviceId}
+                className="self-start sm:self-auto flex-shrink-0"
                 data-testid="button-test-audio"
               >
                 {isTesting ? (
@@ -428,9 +432,9 @@ export default function AdminAudioSources() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <Label className="text-sm font-medium">Input Level</Label>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-xs sm:text-sm text-muted-foreground">
                   {isTesting ? `${testLevel}%` : "Inactive"}
                 </span>
               </div>
@@ -442,7 +446,7 @@ export default function AdminAudioSources() {
               <p className="text-xs text-muted-foreground">
                 {isTesting
                   ? "Speak into your microphone or play audio through your mixer"
-                  : "Click 'Test Audio' to check your input levels"}
+                  : "Tap 'Test Audio' to check your input levels"}
               </p>
             </div>
           </CardContent>
@@ -450,8 +454,8 @@ export default function AdminAudioSources() {
       </div>
 
       <Alert>
-        <Mic className="h-4 w-4" />
-        <AlertDescription>
+        <Mic className="h-4 w-4 flex-shrink-0" />
+        <AlertDescription className="text-xs sm:text-sm">
           {autoSwitch ? (
             <>
               <strong>Auto-switch is enabled.</strong> When you connect a mixer or audio interface, 
