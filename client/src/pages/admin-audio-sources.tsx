@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 import { 
   Mic, 
   RefreshCw, 
@@ -14,7 +15,10 @@ import {
   Check, 
   AlertCircle, 
   Headphones,
-  Settings2
+  Settings2,
+  Cable,
+  Smartphone,
+  Zap
 } from "lucide-react";
 import { useAudioDevices, type AudioDevice } from "@/hooks/use-audio-devices";
 import { useToast } from "@/hooks/use-toast";
@@ -24,10 +28,14 @@ export default function AdminAudioSources() {
   const {
     devices,
     selectedDeviceId,
+    selectedDevice,
     isLoading,
     error,
     hasPermission,
+    autoSwitch,
+    hasExternalDevice,
     selectDevice,
+    toggleAutoSwitch,
     refreshDevices,
     requestPermission,
   } = useAudioDevices();
@@ -141,14 +149,17 @@ export default function AdminAudioSources() {
   };
 
   const getDeviceIcon = (device: AudioDevice) => {
-    const label = device.label.toLowerCase();
-    if (label.includes("mixer") || label.includes("interface") || label.includes("line")) {
-      return <Settings2 className="w-5 h-5" />;
+    if (device.isExternal) {
+      const label = device.label.toLowerCase();
+      if (label.includes("mixer") || label.includes("interface") || label.includes("line")) {
+        return <Settings2 className="w-5 h-5" />;
+      }
+      if (label.includes("headset") || label.includes("headphone")) {
+        return <Headphones className="w-5 h-5" />;
+      }
+      return <Cable className="w-5 h-5" />;
     }
-    if (label.includes("headset") || label.includes("headphone")) {
-      return <Headphones className="w-5 h-5" />;
-    }
-    return <Mic className="w-5 h-5" />;
+    return <Smartphone className="w-5 h-5" />;
   };
 
   const getDeviceType = (device: AudioDevice): string => {
@@ -162,10 +173,29 @@ export default function AdminAudioSources() {
     if (label.includes("headset")) {
       return "Headset";
     }
+    if (label.includes("usb")) {
+      return "USB Audio";
+    }
+    if (label.includes("bluetooth")) {
+      return "Bluetooth";
+    }
     if (label.includes("webcam") || label.includes("camera")) {
       return "Camera Mic";
     }
-    return "Microphone";
+    if (device.isExternal) {
+      return "External Input";
+    }
+    return "Built-in Mic";
+  };
+
+  const handleAutoSwitchToggle = (enabled: boolean) => {
+    toggleAutoSwitch(enabled);
+    toast({
+      title: enabled ? "Auto-switch enabled" : "Auto-switch disabled",
+      description: enabled 
+        ? "Audio will switch automatically when external devices are connected" 
+        : "You'll need to manually select audio sources",
+    });
   };
 
   if (isLoading) {
@@ -237,10 +267,67 @@ export default function AdminAudioSources() {
       <div className="grid gap-4">
         <Card>
           <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5" />
+              Smart Audio Switching
+            </CardTitle>
+            <CardDescription>
+              Automatically switch between your phone's microphone and external audio sources
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Auto-switch audio source</Label>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, automatically uses external devices (mixer, USB audio) when connected. 
+                  Falls back to built-in mic when disconnected.
+                </p>
+              </div>
+              <Switch
+                checked={autoSwitch}
+                onCheckedChange={handleAutoSwitchToggle}
+                data-testid="switch-auto-audio"
+              />
+            </div>
+            
+            <div className={`flex items-center gap-3 p-3 rounded-lg ${
+              hasExternalDevice 
+                ? "bg-primary/10 text-primary" 
+                : "bg-muted text-muted-foreground"
+            }`}>
+              {hasExternalDevice ? (
+                <>
+                  <Cable className="w-5 h-5" />
+                  <div>
+                    <p className="text-sm font-medium">External device connected</p>
+                    <p className="text-xs opacity-80">
+                      {autoSwitch ? "Using external audio source" : "Manual selection active"}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Smartphone className="w-5 h-5" />
+                  <div>
+                    <p className="text-sm font-medium">No external device detected</p>
+                    <p className="text-xs opacity-80">
+                      {autoSwitch ? "Using built-in microphone" : "Connect a mixer or audio interface"}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Available Audio Devices</CardTitle>
             <CardDescription>
-              Select the audio source you want to use for broadcasting. This can be a mixer, 
-              USB audio interface, or any microphone connected to your computer.
+              {autoSwitch 
+                ? "Devices are selected automatically based on connection status"
+                : "Select the audio source you want to use for broadcasting"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -266,18 +353,30 @@ export default function AdminAudioSources() {
                     <div className={`p-2 rounded-md ${
                       selectedDeviceId === device.deviceId
                         ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
+                        : device.isExternal 
+                          ? "bg-accent text-accent-foreground"
+                          : "bg-muted text-muted-foreground"
                     }`}>
                       {getDeviceIcon(device)}
                     </div>
                     <div>
-                      <p className="font-medium">{device.label}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{device.label}</p>
+                        {device.isExternal && (
+                          <Badge variant="outline" className="text-xs px-1.5 py-0">
+                            External
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">{getDeviceType(device)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant={selectedDeviceId === device.deviceId ? "default" : "secondary"}>
-                      {getDeviceType(device)}
+                    <Badge 
+                      variant={selectedDeviceId === device.deviceId ? "default" : "secondary"}
+                      className={device.isExternal && selectedDeviceId !== device.deviceId ? "bg-accent/50" : ""}
+                    >
+                      {device.isExternal ? "External" : "Built-in"}
                     </Badge>
                     {selectedDeviceId === device.deviceId && (
                       <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
@@ -353,8 +452,18 @@ export default function AdminAudioSources() {
       <Alert>
         <Mic className="h-4 w-4" />
         <AlertDescription>
-          The selected audio source will be used when you go live from the Live Controls page.
-          Make sure to test your audio levels before broadcasting.
+          {autoSwitch ? (
+            <>
+              <strong>Auto-switch is enabled.</strong> When you connect a mixer or audio interface, 
+              it will automatically be used for broadcasting. When disconnected, the app falls back 
+              to your device's built-in microphone.
+            </>
+          ) : (
+            <>
+              The selected audio source will be used when you go live from the Live Controls page.
+              Make sure to test your audio levels before broadcasting.
+            </>
+          )}
         </AlertDescription>
       </Alert>
     </div>
