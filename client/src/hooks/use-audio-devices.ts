@@ -159,7 +159,9 @@ export function useAudioDevices() {
           if (savedDeviceId && audioInputs.some((d) => d.deviceId === savedDeviceId)) {
             return savedDeviceId;
           } else if (!currentSelectedId && audioInputs.length > 0) {
-            return audioInputs[0].deviceId;
+            const defaultDevice = audioInputs[0];
+            localStorage.setItem("selectedAudioDevice", defaultDevice.deviceId);
+            return defaultDevice.deviceId;
           }
         }
         
@@ -167,7 +169,13 @@ export function useAudioDevices() {
           return currentSelectedId;
         }
         
-        return currentSelectedId;
+        if (audioInputs.length > 0) {
+          const fallbackDevice = hasExternal ? externalDevices[0] : audioInputs[0];
+          localStorage.setItem("selectedAudioDevice", fallbackDevice.deviceId);
+          return fallbackDevice.deviceId;
+        }
+        
+        return null;
       });
 
       if (audioInputs.some((d) => d.label !== "" && !d.label.startsWith("Audio Input"))) {

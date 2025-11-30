@@ -59,6 +59,41 @@ export default function AdminAudioSources() {
     animationFrameRef.current = requestAnimationFrame(updateLevel);
   }, []);
 
+  const cleanupAudio = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (analyserRef.current) {
+      try {
+        analyserRef.current.disconnect();
+      } catch (e) {
+        // Ignore disconnect errors
+      }
+      analyserRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      try {
+        if (audioContextRef.current.state !== 'closed') {
+          audioContextRef.current.close();
+        }
+      } catch (e) {
+        // Ignore close errors on some browsers
+      }
+      audioContextRef.current = null;
+    }
+
+    setIsTesting(false);
+    setTestLevel(0);
+  }, []);
+
   const startTest = async () => {
     if (!selectedDeviceId) {
       toast({
@@ -69,7 +104,21 @@ export default function AdminAudioSources() {
       return;
     }
 
+    // Clean up any existing test first
+    cleanupAudio();
+
     try {
+      // Check if AudioContext is supported
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) {
+        toast({
+          title: "Audio not supported",
+          description: "Your browser doesn't support audio analysis. Try using Chrome or Safari.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: { exact: selectedDeviceId },
@@ -81,8 +130,13 @@ export default function AdminAudioSources() {
 
       streamRef.current = stream;
 
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioContext = new AudioContextClass();
       audioContextRef.current = audioContext;
+
+      // Resume audio context if suspended (required on some mobile browsers)
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
 
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
@@ -98,44 +152,35 @@ export default function AdminAudioSources() {
         description: "Speak or play audio through your mixer to see the levels",
       });
     } catch (err) {
+      // Clean up on error
+      cleanupAudio();
+      
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      let description = "Unable to access the selected audio device";
+      
+      if (errorMessage.includes("NotAllowedError") || errorMessage.includes("Permission")) {
+        description = "Microphone permission was denied. Please allow access and try again.";
+      } else if (errorMessage.includes("NotFoundError") || errorMessage.includes("not found")) {
+        description = "The selected device was not found. It may have been disconnected.";
+      } else if (errorMessage.includes("NotReadableError") || errorMessage.includes("in use")) {
+        description = "The device is being used by another application. Please close other apps using the microphone.";
+      }
+      
       toast({
         title: "Failed to access device",
-        description: err instanceof Error ? err.message : "Unable to access the selected audio device",
+        description,
         variant: "destructive",
       });
     }
   };
 
-  const stopTest = () => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-
-    if (analyserRef.current) {
-      analyserRef.current.disconnect();
-      analyserRef.current = null;
-    }
-
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-
-    setIsTesting(false);
-    setTestLevel(0);
-  };
+  const stopTest = cleanupAudio;
 
   useEffect(() => {
     return () => {
-      stopTest();
+      cleanupAudio();
     };
-  }, []);
+  }, [cleanupAudio]);
 
   const handleSelectDevice = (device: AudioDevice) => {
     if (isTesting) {
