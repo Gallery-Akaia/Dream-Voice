@@ -10,6 +10,16 @@ interface WebSocketMessage {
   position?: number;
 }
 
+// Hardcoded track for the frontend
+const HARDCODED_TRACK: AudioTrack = {
+  id: "hardcoded-audio-1",
+  title: "Hardcoded Audio",
+  artist: "System",
+  duration: 180,
+  fileUrl: "/hardcoded-audio.mov",
+  order: 0,
+};
+
 export function useWebSocket() {
   const [radioState, setRadioState] = useState<RadioState>({
     currentTrackId: null,
@@ -18,7 +28,7 @@ export function useWebSocket() {
     backgroundVolume: 30,
     listenerCount: 0,
   });
-  const [tracks, setTracks] = useState<AudioTrack[]>([]);
+  const [tracks, setTracks] = useState<AudioTrack[]>([HARDCODED_TRACK]);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const [ws, setWs] = useState<WebSocket | null>(null);
@@ -42,13 +52,13 @@ export function useWebSocket() {
         switch (data.type) {
           case "initial_state":
             if (data.state) setRadioState(data.state);
-            if (data.tracks) setTracks(data.tracks);
+            if (data.tracks) setTracks([HARDCODED_TRACK, ...data.tracks]);
             break;
           case "radio_state_updated":
             if (data.state) setRadioState(data.state);
             break;
           case "playlist_updated":
-            if (data.tracks) setTracks(data.tracks);
+            if (data.tracks) setTracks([HARDCODED_TRACK, ...data.tracks]);
             break;
           case "listener_count_updated":
             if (data.count !== undefined) {
