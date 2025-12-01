@@ -10,15 +10,25 @@ interface WebSocketMessage {
   position?: number;
 }
 
-// Hardcoded track for the frontend
-const HARDCODED_TRACK: AudioTrack = {
-  id: "hardcoded-audio-1",
-  title: "Test",
-  artist: "System",
-  duration: 180,
-  fileUrl: "/test-audio.mp3",
-  order: 0,
-};
+// Hardcoded tracks for the frontend
+const HARDCODED_TRACKS: AudioTrack[] = [
+  {
+    id: "hardcoded-audio-1",
+    title: "Test",
+    artist: "System",
+    duration: 5,
+    fileUrl: "/test-audio.mp3",
+    order: 0,
+  },
+  {
+    id: "hardcoded-audio-2",
+    title: "Test 2",
+    artist: "System",
+    duration: 9,
+    fileUrl: "/test-audio-2.mp3",
+    order: 1,
+  },
+];
 
 export function useWebSocket() {
   const [radioState, setRadioState] = useState<RadioState>({
@@ -28,7 +38,7 @@ export function useWebSocket() {
     backgroundVolume: 30,
     listenerCount: 0,
   });
-  const [tracks, setTracks] = useState<AudioTrack[]>([HARDCODED_TRACK]);
+  const [tracks, setTracks] = useState<AudioTrack[]>(HARDCODED_TRACKS);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const [ws, setWs] = useState<WebSocket | null>(null);
@@ -52,20 +62,20 @@ export function useWebSocket() {
         switch (data.type) {
           case "initial_state":
             if (data.state) {
-              // Set the hardcoded track as current if no track is currently playing
+              // Set the first hardcoded track as current if no track is currently playing
               if (data.state.currentTrackId === null) {
-                setRadioState({ ...data.state, currentTrackId: HARDCODED_TRACK.id });
+                setRadioState({ ...data.state, currentTrackId: HARDCODED_TRACKS[0].id });
               } else {
                 setRadioState(data.state);
               }
             }
-            if (data.tracks) setTracks([HARDCODED_TRACK, ...data.tracks]);
+            if (data.tracks) setTracks([...HARDCODED_TRACKS, ...data.tracks]);
             break;
           case "radio_state_updated":
             if (data.state) setRadioState(data.state);
             break;
           case "playlist_updated":
-            if (data.tracks) setTracks([HARDCODED_TRACK, ...data.tracks]);
+            if (data.tracks) setTracks([...HARDCODED_TRACKS, ...data.tracks]);
             break;
           case "listener_count_updated":
             if (data.count !== undefined) {
