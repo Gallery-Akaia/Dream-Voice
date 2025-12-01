@@ -51,7 +51,14 @@ export function useWebSocket() {
 
         switch (data.type) {
           case "initial_state":
-            if (data.state) setRadioState(data.state);
+            if (data.state) {
+              // Set the hardcoded track as current if no track is currently playing
+              if (data.state.currentTrackId === null) {
+                setRadioState({ ...data.state, currentTrackId: HARDCODED_TRACK.id });
+              } else {
+                setRadioState(data.state);
+              }
+            }
             if (data.tracks) setTracks([HARDCODED_TRACK, ...data.tracks]);
             break;
           case "radio_state_updated":
