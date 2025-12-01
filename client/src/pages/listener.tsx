@@ -405,6 +405,14 @@ export default function ListenerPage() {
               </Button>
             </div>
 
+            <div className="mt-6 p-4 bg-background/50 rounded-lg border border-muted">
+              <p className="text-xs text-muted-foreground mb-2">Quick Test - Native HTML5 Player:</p>
+              <audio controls className="w-full" controlsList="nodownload">
+                <source src="/test-audio.mp3" type="audio/mpeg" />
+                Your browser does not support the audio element.
+              </audio>
+            </div>
+
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Volume</span>
