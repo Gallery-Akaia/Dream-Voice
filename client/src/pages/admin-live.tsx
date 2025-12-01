@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMicrophone } from "@/hooks/use-microphone";
 import { useAudioDevices } from "@/hooks/use-audio-devices";
+import { speak } from "@/lib/text-to-speech";
 import { useRef, useEffect } from "react";
 import { Link } from "wouter";
 import type { RadioState } from "@shared/schema";
@@ -91,6 +92,7 @@ export default function AdminLive() {
           { isLive: newLiveState },
           {
             onSuccess: () => {
+              speak("You're live. Broadcasting microphone to all listeners now.");
               toast({
                 title: "You're live!",
                 description: "Broadcasting microphone to all listeners now.",
@@ -117,6 +119,7 @@ export default function AdminLive() {
         { isLive: newLiveState },
         {
           onSuccess: () => {
+            speak("Broadcast ended. Automated playback resumed.");
             toast({
               title: "Broadcast ended",
               description: "Automated playback resumed.",
@@ -142,6 +145,7 @@ export default function AdminLive() {
       { isLive: false },
       {
         onSuccess: () => {
+          speak("Emergency stop activated. Live broadcast stopped immediately.");
           toast({
             title: "Emergency stop activated",
             description: "Live broadcast stopped immediately.",
