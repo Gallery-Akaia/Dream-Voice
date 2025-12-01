@@ -14,6 +14,11 @@ import { useWebSocket } from "@/hooks/use-websocket";
 import { motion, useReducedMotion } from "framer-motion";
 import type { ChatMessage } from "@shared/schema";
 
+const AUDIO_FILES = [
+  { id: "1", title: "Test", url: "/test-audio.mp3", duration: 5 },
+  { id: "2", title: "Test 2", url: "/test-audio-2.mp3", duration: 9 },
+];
+
 export default function ListenerPage() {
   const { radioState, tracks, isConnected, ws } = useWebSocket();
   const shouldReduceMotion = useReducedMotion();
@@ -25,6 +30,7 @@ export default function ListenerPage() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const micAudioContextRef = useRef<AudioContext | null>(null);
@@ -111,7 +117,9 @@ export default function ListenerPage() {
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
+      audioRef.current.src = AUDIO_FILES[0].url;
       audioRef.current.preload = "auto";
+      audioRef.current.onended = handleAudioEnded;
     }
 
     return () => {
@@ -216,6 +224,11 @@ export default function ListenerPage() {
   }, [isMuted, volume]);
 
   useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.src = AUDIO_FILES[currentTrackIndex].url;
+  }, [currentTrackIndex]);
+
+  useEffect(() => {
     if (!micGainNodeRef.current) return;
     const volumeLevel = isMuted ? 0 : volume[0] / 100;
     micGainNodeRef.current.gain.value = volumeLevel;
@@ -229,25 +242,24 @@ export default function ListenerPage() {
   }, [radioState.isLive]);
 
   const togglePlay = () => {
-    if (!isConnected || !currentTrack) return;
+    if (!audioRef.current) return;
     
-    initMicAudioContext();
-    
-    if (!isPlaying) {
-      if (audioRef.current) {
-        audioRef.current.currentTime = radioState.playbackPosition;
-        audioRef.current.play().catch((error) => {
-          console.error("Audio playback error:", error);
-          return;
-        });
-      }
+    if (isPlaying) {
+      audioRef.current.pause();
     } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
+      audioRef.current.play().catch(err => console.error("Play error:", err));
     }
     
     setIsPlaying(!isPlaying);
+  };
+
+  const handleAudioEnded = () => {
+    const nextIndex = (currentTrackIndex + 1) % AUDIO_FILES.length;
+    setCurrentTrackIndex(nextIndex);
+    if (audioRef.current) {
+      audioRef.current.src = AUDIO_FILES[nextIndex].url;
+      audioRef.current.play().catch(err => console.error("Play error:", err));
+    }
   };
 
   const toggleMute = () => {
@@ -371,36 +383,18 @@ export default function ListenerPage() {
               </div>
             </div>
 
-            {currentTrack ? (
-              <div className="text-center space-y-1" data-testid="div-current-track">
-                <h2 className="text-3xl font-semibold">{currentTrack.title}</h2>
-                <p className="text-lg text-muted-foreground">
-                  {currentTrack.artist || "Unknown Artist"}
-                </p>
-              </div>
-            ) : (
-              <div className="text-center space-y-1">
-                <h2 className="text-2xl font-medium text-muted-foreground">
-                  {isConnected 
-                    ? (tracks.length > 0 ? "Ready to play" : "No tracks available") 
-                    : "Connecting to server..."}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {isConnected && tracks.length > 0
-                    ? "Press play to start listening" 
-                    : isConnected 
-                      ? "Admin needs to upload audio tracks"
-                      : "Please wait..."}
-                </p>
-              </div>
-            )}
+            <div className="text-center space-y-1" data-testid="div-current-track">
+              <h2 className="text-3xl font-semibold">{AUDIO_FILES[currentTrackIndex].title}</h2>
+              <p className="text-lg text-muted-foreground">
+                Audio Track
+              </p>
+            </div>
 
             <div className="flex justify-center py-4">
               <Button
                 size="icon"
                 className="h-24 w-24 rounded-full shadow-lg"
                 onClick={togglePlay}
-                disabled={!isConnected || tracks.length === 0}
                 data-testid="button-play-pause"
               >
                 {isPlaying ? (
@@ -463,6 +457,7 @@ export default function ListenerPage() {
         messages={chatMessages}
         username={username}
       />
+      <audio ref={audioRef} />
     </div>
   );
 }
