@@ -211,8 +211,9 @@ export default function ListenerPage() {
 
   useEffect(() => {
     if (!audioRef.current) return;
-    audioRef.current.volume = 1;
-  }, []);
+    const volumeLevel = isMuted ? 0 : volume[0] / 100;
+    audioRef.current.volume = volumeLevel;
+  }, [isMuted, volume]);
 
   useEffect(() => {
     if (!micGainNodeRef.current) return;

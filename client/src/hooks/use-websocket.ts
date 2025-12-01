@@ -13,10 +13,10 @@ interface WebSocketMessage {
 // Hardcoded track for the frontend
 const HARDCODED_TRACK: AudioTrack = {
   id: "hardcoded-audio-1",
-  title: "Hardcoded Audio",
+  title: "Test",
   artist: "System",
   duration: 180,
-  fileUrl: "/hardcoded-audio.mov",
+  fileUrl: "/test-audio.mp3",
   order: 0,
 };
 
