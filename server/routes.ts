@@ -355,6 +355,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isVideo = chunkedUpload.mimeType.startsWith("video/");
       let finalMimeType = chunkedUpload.mimeType;
       
+      let finalDuration = chunkedUpload.duration;
+      
       if (isVideo) {
         const fs = await import("fs/promises");
         const tempPath = path.join(process.cwd(), "uploads", `temp-chunk-${Date.now()}${ext}`);
@@ -366,6 +368,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           fileBuffer = await fs.readFile(outputPath);
           ext = ".mp3";
           finalMimeType = "audio/mpeg";
+          
+          // Extract correct duration from converted audio
+          try {
+            const metadata = await parseFile(outputPath);
+            if (metadata.format.duration) {
+              finalDuration = Math.ceil(metadata.format.duration);
+            }
+          } catch (metadataError) {
+            console.error("Failed to extract duration from converted audio:", metadataError);
+          }
+          
           await fs.unlink(tempPath).catch(() => {});
           await fs.unlink(outputPath).catch(() => {});
         } catch (ffmpegError) {
@@ -374,6 +387,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await fs.unlink(outputPath).catch(() => {});
           return res.status(400).json({ error: "Failed to extract audio from video. Please try a different file." });
         }
+      } else {
+        // For non-video uploads, also verify/extract duration from the audio file
+        const fs = await import("fs/promises");
+        const tempPath = path.join(process.cwd(), "uploads", `temp-meta-chunk-${Date.now()}${ext}`);
+        try {
+          await fs.writeFile(tempPath, fileBuffer);
+          const metadata = await parseFile(tempPath);
+          if (metadata.format.duration) {
+            finalDuration = Math.ceil(metadata.format.duration);
+          }
+          await fs.unlink(tempPath).catch(() => {});
+        } catch (metadataError) {
+          console.error("Failed to extract metadata from chunked upload:", metadataError);
+          await fs.unlink(tempPath).catch(() => {});
+        }
       }
       
       const uniqueKey = `audio/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
@@ -381,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const trackData = insertAudioTrackSchema.parse({
         title: chunkedUpload.title,
         artist: chunkedUpload.artist,
-        duration: chunkedUpload.duration,
+        duration: finalDuration,
         fileUrl: getStorageUrl(uniqueKey),
         order: (await storage.getAllTracks()).length,
         uploadStatus: "uploading",
@@ -489,7 +517,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await fs.writeFile(tempPath, audioBuffer);
           const metadata = await parseFile(tempPath);
           if (metadata.format.duration) {
-            duration = Math.floor(metadata.format.duration);
+            duration = Math.ceil(metadata.format.duration);
           }
           if (metadata.common.title) {
             title = metadata.common.title;
