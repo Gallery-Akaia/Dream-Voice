@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
+const BUFFER_SIZE = 4096;
+
 export function useMicrophone() {
   const [isActive, setIsActive] = useState(false);
   const [permission, setPermission] = useState<"granted" | "denied" | "prompt">("prompt");
@@ -8,11 +10,13 @@ export function useMicrophone() {
   const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const onAudioDataRef = useRef<((data: Blob) => void) | null>(null);
+  const onAudioDataRef = useRef<((data: ArrayBuffer, sampleRate: number) => void) | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
   const updateMicLevel = useCallback(() => {
     if (!analyserRef.current) return;
@@ -27,13 +31,25 @@ export function useMicrophone() {
   }, []);
 
   const cleanupAudio = useCallback(() => {
-    if (recorderRef.current && recorderRef.current.state !== "inactive") {
+    if (processorRef.current) {
       try {
-        recorderRef.current.stop();
-      } catch (e) {
-        // Ignore stop errors
-      }
-      recorderRef.current = null;
+        processorRef.current.disconnect();
+      } catch (e) {}
+      processorRef.current = null;
+    }
+    
+    if (workletNodeRef.current) {
+      try {
+        workletNodeRef.current.disconnect();
+      } catch (e) {}
+      workletNodeRef.current = null;
+    }
+    
+    if (sourceRef.current) {
+      try {
+        sourceRef.current.disconnect();
+      } catch (e) {}
+      sourceRef.current = null;
     }
 
     if (streamRef.current) {
@@ -44,9 +60,7 @@ export function useMicrophone() {
     if (analyserRef.current) {
       try {
         analyserRef.current.disconnect();
-      } catch (e) {
-        // Ignore disconnect errors
-      }
+      } catch (e) {}
       analyserRef.current = null;
     }
 
@@ -55,9 +69,7 @@ export function useMicrophone() {
         if (audioContextRef.current.state !== 'closed') {
           audioContextRef.current.close();
         }
-      } catch (e) {
-        // Ignore close errors on some browsers
-      }
+      } catch (e) {}
       audioContextRef.current = null;
     }
 
@@ -72,8 +84,63 @@ export function useMicrophone() {
     onAudioDataRef.current = null;
   }, []);
 
-  const startMicrophone = useCallback(async (onAudioData: (data: Blob) => void, deviceId?: string | null) => {
-    // Clean up any existing stream first
+  const setupWithWorklet = async (
+    audioContext: AudioContext,
+    source: MediaStreamAudioSourceNode,
+    sampleRate: number
+  ): Promise<boolean> => {
+    try {
+      await audioContext.audioWorklet.addModule('/audio-processor.js');
+      
+      const workletNode = new AudioWorkletNode(audioContext, 'audio-processor', {
+        numberOfInputs: 1,
+        numberOfOutputs: 0,
+        channelCount: 1,
+      });
+      workletNodeRef.current = workletNode;
+      
+      workletNode.port.onmessage = (event) => {
+        if (onAudioDataRef.current && event.data.pcmData) {
+          const pcmBuffer = event.data.pcmData;
+          const actualSampleRate = event.data.sampleRate || sampleRate;
+          onAudioDataRef.current(pcmBuffer, actualSampleRate);
+        }
+      };
+      
+      source.connect(workletNode);
+      
+      return true;
+    } catch (e) {
+      console.log("AudioWorklet not supported, falling back to ScriptProcessor");
+      return false;
+    }
+  };
+
+  const setupWithScriptProcessor = (
+    audioContext: AudioContext,
+    source: MediaStreamAudioSourceNode,
+    sampleRate: number
+  ) => {
+    const processor = audioContext.createScriptProcessor(BUFFER_SIZE, 1, 1);
+    processorRef.current = processor;
+    
+    processor.onaudioprocess = (event) => {
+      if (onAudioDataRef.current) {
+        const inputData = event.inputBuffer.getChannelData(0);
+        const buffer = new Float32Array(inputData).buffer;
+        onAudioDataRef.current(buffer, sampleRate);
+      }
+    };
+    
+    source.connect(processor);
+    
+    const silentGain = audioContext.createGain();
+    silentGain.gain.value = 0;
+    processor.connect(silentGain);
+    silentGain.connect(audioContext.destination);
+  };
+
+  const startMicrophone = useCallback(async (onAudioData: (data: ArrayBuffer, sampleRate: number) => void, deviceId?: string | null) => {
     cleanupAudio();
     
     try {
@@ -97,7 +164,6 @@ export function useMicrophone() {
           audio: audioConstraints,
         });
       } catch (deviceErr) {
-        // If exact device failed, try without device constraint as fallback
         if (savedDeviceId && deviceErr instanceof Error && 
             (deviceErr.name === 'OverconstrainedError' || deviceErr.message.includes('not found'))) {
           stream = await navigator.mediaDevices.getUserMedia({
@@ -107,7 +173,6 @@ export function useMicrophone() {
               autoGainControl: true,
             },
           });
-          // Clear the invalid saved device
           localStorage.removeItem("selectedAudioDevice");
         } else {
           throw deviceErr;
@@ -121,49 +186,45 @@ export function useMicrophone() {
       streamRef.current = stream;
       onAudioDataRef.current = onAudioData;
 
-      // Create MediaRecorder with Opus compression (like WhatsApp/Telegram)
-      const options = {
-        mimeType: "audio/webm;codecs=opus",
-        audioBitsPerSecond: 32000, // 32kbps for low latency
-      };
-
-      const recorder = new MediaRecorder(stream, options);
-      recorderRef.current = recorder;
-
-      // Send compressed audio chunks immediately as they're available
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && onAudioDataRef.current) {
-          onAudioDataRef.current(event.data);
-        }
-      };
-
-      // Request audio data every 250ms for smoother streaming
-      recorder.start(250);
-
-      // Set up analyser for mic level visualization
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        const audioContext = new AudioContextClass();
-        audioContextRef.current = audioContext;
+      const audioContext = new AudioContextClass();
+      audioContextRef.current = audioContext;
+      
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+      }
+      
+      const source = audioContext.createMediaStreamSource(stream);
+      sourceRef.current = source;
+      
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+      
+      const sampleRate = audioContext.sampleRate;
+      
+      const workletSuccess = await setupWithWorklet(audioContext, source, sampleRate);
+      if (!workletSuccess) {
+        const isScriptProcessorAvailable = typeof audioContext.createScriptProcessor === 'function';
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         
-        // Resume if suspended (required on some mobile browsers)
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
+        if (!isScriptProcessorAvailable || isMobile) {
+          cleanupAudio();
+          setError("Live audio is not supported on this device. Please try using a desktop browser.");
+          setPermission("denied");
+          setIsActive(false);
+          return;
         }
         
-        const source = audioContext.createMediaStreamSource(stream);
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
-        source.connect(analyser);
-        analyserRef.current = analyser;
-        
-        updateMicLevel();
+        setupWithScriptProcessor(audioContext, source, sampleRate);
       }
+      
+      updateMicLevel();
 
       setPermission("granted");
       setIsActive(true);
     } catch (err) {
-      // Clean up on error
       cleanupAudio();
       
       let message = "Failed to access microphone";
@@ -188,8 +249,7 @@ export function useMicrophone() {
 
   useEffect(() => {
     return () => {
-      // Always cleanup on unmount - check refs directly instead of state
-      if (streamRef.current || recorderRef.current || audioContextRef.current) {
+      if (streamRef.current || processorRef.current || audioContextRef.current || workletNodeRef.current) {
         cleanupAudio();
       }
     };

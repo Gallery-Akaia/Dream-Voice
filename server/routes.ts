@@ -659,8 +659,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       count: connectedClients.size,
     });
 
-    ws.on("message", (message) => {
+    ws.on("message", (message, isBinary) => {
       try {
+        if (isBinary) {
+          connectedClients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN && client !== ws) {
+              client.send(message, { binary: true });
+            }
+          });
+          return;
+        }
+        
         const messageStr = message.toString();
         const data = JSON.parse(messageStr);
         
@@ -681,13 +690,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: "chat_message",
             username: chatMessage.username,
             text: chatMessage.text,
-          });
-        } else if (data.type === "microphone_audio") {
-          // Broadcast microphone audio immediately to all listeners
-          console.log("Broadcasting microphone audio chunk, data length:", data.data?.length || 0);
-          broadcastToClients({
-            type: "microphone_audio",
-            data: data.data,
           });
         }
       } catch (error) {

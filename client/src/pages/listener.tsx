@@ -30,7 +30,7 @@ export default function ListenerPage() {
   const micAudioContextRef = useRef<AudioContext | null>(null);
   const micGainNodeRef = useRef<GainNode | null>(null);
   const micNextStartTimeRef = useRef(0);
-  const playMicrophoneAudioRef = useRef<((base64Data: string) => Promise<void>) | null>(null);
+  const playMicrophoneAudioRef = useRef<((data: ArrayBuffer) => void) | null>(null);
   const lastTrackIdRef = useRef<string | null>(null);
   const currentTrackUrlRef = useRef<string | null>(null);
   const serverPositionRef = useRef<number>(0);
@@ -62,57 +62,65 @@ export default function ListenerPage() {
     }
   }, [isMuted, volume]);
 
-  const playMicrophoneAudio = useCallback(async (base64Data: string) => {
+  const playMicrophoneAudio = useCallback((arrayBuffer: ArrayBuffer) => {
     try {
-      console.log("Received microphone audio, base64 length:", base64Data.length);
+      if (arrayBuffer.byteLength < 8) {
+        return;
+      }
       
-      await initMicAudioContext();
+      const dataView = new DataView(arrayBuffer);
+      const sampleRate = dataView.getUint32(0, true);
+      const pcmByteLength = dataView.getUint32(4, true);
       
-      if (!micAudioContextRef.current || !micGainNodeRef.current) {
-        console.error("Audio context not initialized");
+      if (arrayBuffer.byteLength < 8 + pcmByteLength || sampleRate < 8000 || sampleRate > 96000) {
+        return;
+      }
+      
+      const pcmSlice = arrayBuffer.slice(8, 8 + pcmByteLength);
+      const pcmData = new Float32Array(pcmSlice);
+      
+      if (!micAudioContextRef.current) {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        micAudioContextRef.current = new AudioContextClass();
+        micGainNodeRef.current = micAudioContextRef.current.createGain();
+        micGainNodeRef.current.connect(micAudioContextRef.current.destination);
+        
+        const volumeLevel = isMuted ? 0 : volume[0] / 100;
+        micGainNodeRef.current.gain.value = volumeLevel;
+        micNextStartTimeRef.current = 0;
+      }
+      
+      const audioContext = micAudioContextRef.current;
+      
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+      
+      if (!micGainNodeRef.current) {
         return;
       }
 
-      const audioContext = micAudioContextRef.current;
-
-      // Convert Base64 to ArrayBuffer
-      const binaryString = atob(base64Data);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+      const audioBuffer = audioContext.createBuffer(1, pcmData.length, sampleRate);
+      audioBuffer.getChannelData(0).set(pcmData);
+      
+      const currentTime = audioContext.currentTime;
+      
+      if (micNextStartTimeRef.current < currentTime - 0.3) {
+        micNextStartTimeRef.current = currentTime + 0.05;
       }
       
-      console.log("Created byte array, size:", bytes.length);
+      const startTime = Math.max(currentTime + 0.02, micNextStartTimeRef.current);
       
-      // Decode audio data
-      const audioBuffer = await audioContext.decodeAudioData(bytes.buffer);
-      
-      // Schedule playback at the correct time
-      const currentTime = audioContext.currentTime;
-      const startTime = Math.max(currentTime, micNextStartTimeRef.current);
-      
-      // Create source node and schedule playback
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(micGainNodeRef.current);
       source.start(startTime);
       
-      // Update next start time for seamless playback
       micNextStartTimeRef.current = startTime + audioBuffer.duration;
-      
-      console.log("Scheduled audio chunk, duration:", audioBuffer.duration, "startTime:", startTime);
     } catch (error) {
-      console.error("Microphone audio playback error:", {
-        error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-        base64Length: base64Data?.length,
-        audioContextState: micAudioContextRef.current?.state,
-        currentTime: micAudioContextRef.current?.currentTime,
-        nextStartTime: micNextStartTimeRef.current,
-      });
+      console.error("Microphone audio playback error:", error);
     }
-  }, [initMicAudioContext]);
+  }, [isMuted, volume]);
 
   // Store the callback in ref so WebSocket handler can always access latest version
   useEffect(() => {
@@ -152,23 +160,34 @@ export default function ListenerPage() {
   useEffect(() => {
     if (!ws) return;
 
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       try {
-        const data = JSON.parse(event.data);
-        if (data.type === "chat_message") {
-          const newMessage: ChatMessage = {
-            id: Math.random().toString(),
-            username: data.username,
-            text: data.text,
-            timestamp: Date.now(),
-          };
-          setChatMessages(prev => [...prev.slice(-49), newMessage]);
-          setUnreadCount(prev => prev + 1);
-        } else if (data.type === "microphone_audio") {
-          // Play microphone audio from admin using ref to avoid recreating listener
-          console.log("Received microphone audio chunk");
+        let arrayBuffer: ArrayBuffer | null = null;
+        
+        if (event.data instanceof Blob) {
+          arrayBuffer = await event.data.arrayBuffer();
+        } else if (event.data instanceof ArrayBuffer) {
+          arrayBuffer = event.data;
+        }
+        
+        if (arrayBuffer && arrayBuffer.byteLength >= 8) {
           if (playMicrophoneAudioRef.current) {
-            playMicrophoneAudioRef.current(data.data);
+            playMicrophoneAudioRef.current(arrayBuffer);
+          }
+          return;
+        }
+        
+        if (typeof event.data === 'string') {
+          const data = JSON.parse(event.data);
+          if (data.type === "chat_message") {
+            const newMessage: ChatMessage = {
+              id: Math.random().toString(),
+              username: data.username,
+              text: data.text,
+              timestamp: Date.now(),
+            };
+            setChatMessages(prev => [...prev.slice(-49), newMessage]);
+            setUnreadCount(prev => prev + 1);
           }
         }
       } catch (error) {
