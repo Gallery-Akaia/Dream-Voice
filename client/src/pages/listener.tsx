@@ -14,11 +14,6 @@ import { useWebSocket } from "@/hooks/use-websocket";
 import { motion, useReducedMotion } from "framer-motion";
 import type { ChatMessage } from "@shared/schema";
 
-const AUDIO_FILES = [
-  { id: "1", title: "Test", url: "/test-audio.mp3", duration: 5 },
-  { id: "2", title: "Test 2", url: "/test-audio-2.mp3", duration: 9 },
-];
-
 export default function ListenerPage() {
   const { radioState, tracks, isConnected, ws } = useWebSocket();
   const shouldReduceMotion = useReducedMotion();
@@ -30,15 +25,16 @@ export default function ListenerPage() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const micAudioContextRef = useRef<AudioContext | null>(null);
   const micGainNodeRef = useRef<GainNode | null>(null);
   const micNextStartTimeRef = useRef(0);
   const playMicrophoneAudioRef = useRef<((base64Data: string) => Promise<void>) | null>(null);
+  const lastTrackIdRef = useRef<string | null>(null);
 
-  const currentTrack = tracks.find((t) => t.id === radioState.currentTrackId);
+  const readyTracks = tracks.filter(t => t.uploadStatus === "ready" || !t.uploadStatus);
+  const currentTrack = readyTracks.find((t) => t.id === radioState.currentTrackId);
 
   const initMicAudioContext = useCallback(async () => {
     if (!micAudioContextRef.current) {
@@ -117,9 +113,7 @@ export default function ListenerPage() {
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
-      audioRef.current.src = AUDIO_FILES[0].url;
       audioRef.current.preload = "auto";
-      audioRef.current.onended = handleAudioEnded;
     }
 
     return () => {
@@ -224,9 +218,20 @@ export default function ListenerPage() {
   }, [isMuted, volume]);
 
   useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.src = AUDIO_FILES[currentTrackIndex].url;
-  }, [currentTrackIndex]);
+    if (!audioRef.current || !currentTrack) return;
+    
+    if (lastTrackIdRef.current !== currentTrack.id) {
+      lastTrackIdRef.current = currentTrack.id;
+      audioRef.current.src = currentTrack.fileUrl;
+      audioRef.current.currentTime = radioState.playbackPosition;
+      
+      if (isPlaying) {
+        audioRef.current.play().catch((error) => {
+          console.error("Track change play error:", error);
+        });
+      }
+    }
+  }, [currentTrack, radioState.playbackPosition, isPlaying]);
 
   useEffect(() => {
     if (!micGainNodeRef.current) return;
@@ -242,24 +247,19 @@ export default function ListenerPage() {
   }, [radioState.isLive]);
 
   const togglePlay = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !currentTrack) return;
     
     if (isPlaying) {
       audioRef.current.pause();
     } else {
+      if (!audioRef.current.src || audioRef.current.src === "") {
+        audioRef.current.src = currentTrack.fileUrl;
+        audioRef.current.currentTime = radioState.playbackPosition;
+      }
       audioRef.current.play().catch(err => console.error("Play error:", err));
     }
     
     setIsPlaying(!isPlaying);
-  };
-
-  const handleAudioEnded = () => {
-    const nextIndex = (currentTrackIndex + 1) % AUDIO_FILES.length;
-    setCurrentTrackIndex(nextIndex);
-    if (audioRef.current) {
-      audioRef.current.src = AUDIO_FILES[nextIndex].url;
-      audioRef.current.play().catch(err => console.error("Play error:", err));
-    }
   };
 
   const toggleMute = () => {
@@ -384,9 +384,9 @@ export default function ListenerPage() {
             </div>
 
             <div className="text-center space-y-1" data-testid="div-current-track">
-              <h2 className="text-3xl font-semibold">{AUDIO_FILES[currentTrackIndex].title}</h2>
+              <h2 className="text-3xl font-semibold">{currentTrack?.title || "No tracks"}</h2>
               <p className="text-lg text-muted-foreground">
-                Audio Track
+                {currentTrack?.artist || "Unknown Artist"}
               </p>
             </div>
 
@@ -403,14 +403,6 @@ export default function ListenerPage() {
                   <Play className="h-10 w-10 ml-1" />
                 )}
               </Button>
-            </div>
-
-            <div className="mt-6 p-4 bg-background/50 rounded-lg border border-muted">
-              <p className="text-xs text-muted-foreground mb-2">Quick Test - Native HTML5 Player:</p>
-              <audio controls className="w-full" controlsList="nodownload">
-                <source src="/test-audio.mp3" type="audio/mpeg" />
-                Your browser does not support the audio element.
-              </audio>
             </div>
 
             <div className="space-y-2">
