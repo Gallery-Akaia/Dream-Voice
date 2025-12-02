@@ -125,7 +125,21 @@ export default function ListenerPage() {
       audioRef.current.preload = "auto";
     }
 
+    const audio = audioRef.current;
+    
+    const handleAudioError = (e: Event) => {
+      const mediaError = (e.target as HTMLAudioElement).error;
+      console.error("Audio element error:", {
+        code: mediaError?.code,
+        message: mediaError?.message,
+        src: audio.src,
+      });
+    };
+
+    audio.addEventListener("error", handleAudioError);
+
     return () => {
+      audio.removeEventListener("error", handleAudioError);
       if (syncIntervalRef.current) {
         clearInterval(syncIntervalRef.current);
       }
@@ -185,12 +199,12 @@ export default function ListenerPage() {
       audio.src = resolvedUrl;
       audio.currentTime = radioState.playbackPosition;
       audio.play().catch((error) => {
-        console.error("Audio playback error:", error);
+        console.error("Audio playback error:", error?.name, error?.message, resolvedUrl);
         setIsPlaying(false);
       });
     } else if (audio.paused) {
       audio.play().catch((error) => {
-        console.error("Audio resume error:", error);
+        console.error("Audio resume error:", error?.name, error?.message);
         setIsPlaying(false);
       });
     }
@@ -249,7 +263,7 @@ export default function ListenerPage() {
       
       if (isPlaying) {
         audioRef.current.play().catch((error) => {
-          console.error("Track change play error:", error);
+          console.error("Track change play error:", error?.name, error?.message, resolvedUrl);
         });
       }
     }

@@ -177,9 +177,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Valid duration is required" });
       }
 
-      const uniqueKey = `audio/${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(req.file.originalname)}`;
-      const fileBuffer = req.file.buffer;
-      const mimeType = req.file.mimetype;
+      let fileBuffer = req.file.buffer;
+      let ext = path.extname(req.file.originalname);
+      const isVideo = req.file.mimetype.startsWith("video/");
+      
+      if (isVideo) {
+        const fs = await import("fs/promises");
+        const tempPath = path.join(process.cwd(), "uploads", `temp-fast-${Date.now()}${ext}`);
+        const outputPath = path.join(process.cwd(), "uploads", `temp-fast-${Date.now()}.mp3`);
+        
+        try {
+          await fs.writeFile(tempPath, fileBuffer);
+          execSync(`ffmpeg -i "${tempPath}" -q:a 5 -map a "${outputPath}" -y -loglevel quiet`);
+          fileBuffer = await fs.readFile(outputPath);
+          ext = ".mp3";
+          await fs.unlink(tempPath).catch(() => {});
+          await fs.unlink(outputPath).catch(() => {});
+        } catch (ffmpegError) {
+          console.error("Failed to extract audio from video:", ffmpegError);
+          await fs.unlink(tempPath).catch(() => {});
+          await fs.unlink(outputPath).catch(() => {});
+          return res.status(400).json({ error: "Failed to extract audio from video. Please try a different file." });
+        }
+      }
+
+      const uniqueKey = `audio/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      const mimeType = isVideo ? "audio/mpeg" : req.file.mimetype;
 
       const trackData = insertAudioTrackSchema.parse({
         title,
@@ -324,11 +347,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         sortedChunks.push(chunk);
       }
-      const fileBuffer = Buffer.concat(sortedChunks);
+      let fileBuffer = Buffer.concat(sortedChunks);
 
       activeUploads.delete(uploadId);
 
-      const ext = path.extname(chunkedUpload.filename);
+      let ext = path.extname(chunkedUpload.filename);
+      const isVideo = chunkedUpload.mimeType.startsWith("video/");
+      let finalMimeType = chunkedUpload.mimeType;
+      
+      if (isVideo) {
+        const fs = await import("fs/promises");
+        const tempPath = path.join(process.cwd(), "uploads", `temp-chunk-${Date.now()}${ext}`);
+        const outputPath = path.join(process.cwd(), "uploads", `temp-chunk-${Date.now()}.mp3`);
+        
+        try {
+          await fs.writeFile(tempPath, fileBuffer);
+          execSync(`ffmpeg -i "${tempPath}" -q:a 5 -map a "${outputPath}" -y -loglevel quiet`);
+          fileBuffer = await fs.readFile(outputPath);
+          ext = ".mp3";
+          finalMimeType = "audio/mpeg";
+          await fs.unlink(tempPath).catch(() => {});
+          await fs.unlink(outputPath).catch(() => {});
+        } catch (ffmpegError) {
+          console.error("Failed to extract audio from video:", ffmpegError);
+          await fs.unlink(tempPath).catch(() => {});
+          await fs.unlink(outputPath).catch(() => {});
+          return res.status(400).json({ error: "Failed to extract audio from video. Please try a different file." });
+        }
+      }
+      
       const uniqueKey = `audio/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
 
       const trackData = insertAudioTrackSchema.parse({
@@ -351,7 +398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       setImmediate(async () => {
         try {
-          await uploadToStorage(uniqueKey, fileBuffer, chunkedUpload.mimeType);
+          await uploadToStorage(uniqueKey, fileBuffer, finalMimeType);
           await storage.updateTrack(track.id, { uploadStatus: "ready" });
           broadcastToClients({
             type: "track_ready",
