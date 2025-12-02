@@ -10,7 +10,15 @@ RADIO DREAM VOICE is a 24/7 streaming radio application with synchronized playba
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (November 30, 2025)
+## Recent Changes (December 2, 2025)
+
+- ✅ Instant audio uploads - tracks appear immediately in playlist
+- ✅ Background file storage with optimistic UI pattern
+- ✅ Upload status tracking (uploading, ready, failed)
+- ✅ WebSocket notifications for upload completion/failure
+- ✅ Playback loop filters out non-ready tracks to prevent 404 errors
+
+## Previous Changes (November 30, 2025)
 
 - ✅ Audio Sources admin page for connecting external mixers and audio devices
 - ✅ Device enumeration to show all available audio input devices
