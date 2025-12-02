@@ -9,6 +9,7 @@ export interface IStorage {
   getAllTracks(): Promise<AudioTrack[]>;
   getTrack(id: string): Promise<AudioTrack | undefined>;
   createTrack(track: InsertAudioTrack): Promise<AudioTrack>;
+  updateTrack(id: string, updates: Partial<AudioTrack>): Promise<AudioTrack | undefined>;
   deleteTrack(id: string): Promise<void>;
   updateTrackOrder(trackId: string, newOrder: number): Promise<void>;
   
@@ -68,9 +69,19 @@ export class MemStorage implements IStorage {
 
   async createTrack(insertTrack: InsertAudioTrack): Promise<AudioTrack> {
     const id = randomUUID();
-    const track: AudioTrack = { ...insertTrack, id };
+    const track: AudioTrack = { ...insertTrack, id, uploadStatus: insertTrack.uploadStatus || "ready" };
     this.tracks.set(id, track);
     return track;
+  }
+
+  async updateTrack(id: string, updates: Partial<AudioTrack>): Promise<AudioTrack | undefined> {
+    const track = this.tracks.get(id);
+    if (track) {
+      const updatedTrack = { ...track, ...updates };
+      this.tracks.set(id, updatedTrack);
+      return updatedTrack;
+    }
+    return undefined;
   }
 
   async deleteTrack(id: string): Promise<void> {

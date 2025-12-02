@@ -10,19 +10,12 @@ import { execSync } from "child_process";
 import { storage } from "./storage";
 import { insertAudioTrackSchema, insertUserSchema } from "@shared/schema";
 import type { RadioState } from "@shared/schema";
+import { uploadToStorage, deleteFromStorage, downloadFromStorage, getStorageUrl } from "./object-storage";
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, "uploads/");
-    },
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      cb(null, uniqueSuffix + path.extname(file.originalname));
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024,
+    fileSize: 100 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
     const allowedAudioTypes = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg", "audio/aac", "audio/flac"];
@@ -146,71 +139,163 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/tracks/fast", upload.single("audio"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const duration = parseInt(req.body.duration);
+      const title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
+      const artist = req.body.artist || null;
+
+      if (!duration || duration <= 0) {
+        return res.status(400).json({ error: "Valid duration is required" });
+      }
+
+      const uniqueKey = `audio/${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(req.file.originalname)}`;
+      const fileBuffer = req.file.buffer;
+      const mimeType = req.file.mimetype;
+
+      const trackData = insertAudioTrackSchema.parse({
+        title,
+        artist,
+        duration,
+        fileUrl: getStorageUrl(uniqueKey),
+        order: (await storage.getAllTracks()).length,
+        uploadStatus: "uploading",
+      });
+
+      const track = await storage.createTrack(trackData);
+
+      broadcastToClients({
+        type: "playlist_updated",
+        tracks: await storage.getAllTracks(),
+      });
+
+      res.json(track);
+
+      setImmediate(async () => {
+        try {
+          await uploadToStorage(uniqueKey, fileBuffer, mimeType);
+          await storage.updateTrack(track.id, { uploadStatus: "ready" });
+          broadcastToClients({
+            type: "track_ready",
+            trackId: track.id,
+            tracks: await storage.getAllTracks(),
+          });
+        } catch (uploadError) {
+          console.error("Background upload failed:", uploadError);
+          await storage.updateTrack(track.id, { uploadStatus: "failed" });
+          broadcastToClients({
+            type: "track_upload_failed",
+            trackId: track.id,
+            tracks: await storage.getAllTracks(),
+          });
+        }
+      });
+    } catch (error) {
+      console.error("Fast upload error:", error);
+      res.status(500).json({ error: "Failed to upload track" });
+    }
+  });
+
+  app.get("/api/audio/:key(*)", async (req, res) => {
+    try {
+      const key = decodeURIComponent(req.params.key);
+      const buffer = await downloadFromStorage(key);
+      
+      if (!buffer) {
+        return res.status(404).json({ error: "Audio file not found" });
+      }
+
+      const ext = path.extname(key).toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".aac": "audio/aac",
+        ".flac": "audio/flac",
+      };
+
+      res.setHeader("Content-Type", mimeTypes[ext] || "audio/mpeg");
+      res.setHeader("Content-Length", buffer.length);
+      res.setHeader("Accept-Ranges", "bytes");
+      res.send(buffer);
+    } catch (error) {
+      console.error("Audio serve error:", error);
+      res.status(500).json({ error: "Failed to serve audio" });
+    }
+  });
+
   app.post("/api/tracks", upload.single("audio"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const fs = await import("fs/promises");
-      let audioFilePath = req.file.path;
-      let audioFilename = req.file.filename;
+      let audioBuffer = req.file.buffer;
       let isVideo = req.file.mimetype.startsWith("video/");
+      let ext = path.extname(req.file.originalname);
 
-      // If it's a video, extract audio
       if (isVideo) {
+        const fs = await import("fs/promises");
+        const tempPath = path.join(process.cwd(), "uploads", `temp-${Date.now()}${ext}`);
+        const outputPath = path.join(process.cwd(), "uploads", `temp-${Date.now()}.mp3`);
+        
         try {
-          const audioFilenameWithoutExt = audioFilename.replace(/\.[^/.]+$/, "");
-          const newAudioFilename = audioFilenameWithoutExt + ".mp3";
-          const newAudioPath = path.join(process.cwd(), "uploads", newAudioFilename);
-
-          // Use FFmpeg to extract audio (q:a 5 = good quality, fast conversion)
-          execSync(`ffmpeg -i "${audioFilePath}" -q:a 5 -map a "${newAudioPath}" -y -loglevel quiet`);
-
-          // Delete the original video file
-          await fs.unlink(audioFilePath);
-
-          // Update paths to the new audio file
-          audioFilePath = newAudioPath;
-          audioFilename = newAudioFilename;
+          await fs.writeFile(tempPath, audioBuffer);
+          execSync(`ffmpeg -i "${tempPath}" -q:a 5 -map a "${outputPath}" -y -loglevel quiet`);
+          audioBuffer = await fs.readFile(outputPath);
+          ext = ".mp3";
+          await fs.unlink(tempPath).catch(() => {});
+          await fs.unlink(outputPath).catch(() => {});
         } catch (ffmpegError) {
           console.error("Failed to extract audio from video:", ffmpegError);
-          await fs.unlink(req.file.path).catch(() => {});
+          await fs.unlink(tempPath).catch(() => {});
           return res.status(400).json({ error: "Failed to extract audio from video. Please try a different file." });
         }
       }
 
-      let metadata;
-      let duration = 0;
+      let duration = parseInt(req.body.duration) || 0;
       let title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
       let artist = req.body.artist || null;
 
-      try {
-        metadata = await parseFile(audioFilePath);
-        if (metadata.format.duration) {
-          duration = Math.floor(metadata.format.duration);
+      if (duration === 0) {
+        const fs = await import("fs/promises");
+        const tempPath = path.join(process.cwd(), "uploads", `temp-meta-${Date.now()}${ext}`);
+        try {
+          await fs.writeFile(tempPath, audioBuffer);
+          const metadata = await parseFile(tempPath);
+          if (metadata.format.duration) {
+            duration = Math.floor(metadata.format.duration);
+          }
+          if (metadata.common.title) {
+            title = metadata.common.title;
+          }
+          if (metadata.common.artist) {
+            artist = metadata.common.artist;
+          }
+          await fs.unlink(tempPath).catch(() => {});
+        } catch (metadataError) {
+          console.error("Failed to extract metadata:", metadataError);
+          await fs.unlink(tempPath).catch(() => {});
+          duration = 180;
         }
-        if (metadata.common.title) {
-          title = metadata.common.title;
-        }
-        if (metadata.common.artist) {
-          artist = metadata.common.artist;
-        }
-      } catch (metadataError) {
-        console.error("Failed to extract metadata:", metadataError);
-        duration = parseInt(req.body.duration) || 180;
       }
 
       if (duration === 0) {
-        await fs.unlink(audioFilePath);
         return res.status(400).json({ error: "Invalid audio file: duration cannot be determined" });
       }
+
+      const uniqueKey = `audio/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      await uploadToStorage(uniqueKey, audioBuffer, req.file.mimetype);
 
       const trackData = insertAudioTrackSchema.parse({
         title,
         artist,
         duration,
-        fileUrl: `/uploads/${audioFilename}`,
+        fileUrl: getStorageUrl(uniqueKey),
         order: (await storage.getAllTracks()).length,
       });
 
@@ -232,13 +317,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const track = await storage.getTrack(req.params.id);
       if (track) {
-        const fs = await import("fs/promises");
-        const fileName = track.fileUrl.replace("/uploads/", "");
-        const filePath = path.join(process.cwd(), "uploads", fileName);
-        try {
-          await fs.unlink(filePath);
-        } catch (fileError) {
-          console.error("Failed to delete file:", fileError);
+        if (track.fileUrl.startsWith("/api/audio/")) {
+          const key = decodeURIComponent(track.fileUrl.replace("/api/audio/", ""));
+          await deleteFromStorage(key);
+        } else if (track.fileUrl.startsWith("/uploads/")) {
+          const fs = await import("fs/promises");
+          const fileName = track.fileUrl.replace("/uploads/", "");
+          const filePath = path.join(process.cwd(), "uploads", fileName);
+          try {
+            await fs.unlink(filePath);
+          } catch (fileError) {
+            console.error("Failed to delete file:", fileError);
+          }
         }
       }
       
@@ -374,7 +464,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     playbackInterval = setInterval(async () => {
       const state = storage.getRadioState();
-      const tracks = await storage.getAllTracks();
+      const allTracks = await storage.getAllTracks();
+      const tracks = allTracks.filter(t => t.uploadStatus === "ready" || !t.uploadStatus);
 
       storage.recordListenerAnalytics(connectedClients.size);
 
@@ -395,7 +486,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const currentTrackIndex = tracks.findIndex(t => t.id === state.currentTrackId);
-      if (currentTrackIndex === -1) return;
+      if (currentTrackIndex === -1) {
+        if (tracks.length > 0) {
+          storage.updateRadioState({
+            currentTrackId: tracks[0].id,
+            playbackPosition: 0,
+          });
+          broadcastToClients({
+            type: "track_changed",
+            trackId: tracks[0].id,
+            position: 0,
+          });
+        }
+        return;
+      }
 
       const currentTrack = tracks[currentTrackIndex];
       const newPosition = state.playbackPosition + 1;

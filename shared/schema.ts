@@ -16,6 +16,7 @@ export const audioTracks = pgTable("audio_tracks", {
   duration: integer("duration").notNull(),
   fileUrl: text("file_url").notNull(),
   order: integer("order").notNull().default(0),
+  uploadStatus: text("upload_status").default("ready"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
