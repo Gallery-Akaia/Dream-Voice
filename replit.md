@@ -12,6 +12,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (December 2, 2025)
 
+- ✅ Chunked uploads for faster, more reliable file transfers
+  - Files split into 512KB chunks uploaded in parallel (3 concurrent)
+  - Session timeout refreshed on each chunk to prevent expiration
+  - Chunk validation (range check, duplicate detection)
+  - Falls back to single-file upload for small files (<512KB)
 - ✅ Instant audio uploads - tracks appear immediately in playlist
 - ✅ Background file storage with optimistic UI pattern
 - ✅ Upload status tracking (uploading, ready, failed)
@@ -117,6 +122,10 @@ Preferred communication style: Simple, everyday language.
 **Playlist Management:**
 - `GET /api/tracks` - Get all tracks
 - `POST /api/tracks` - Upload new track (multipart/form-data)
+- `POST /api/tracks/fast` - Fast upload with optimistic UI (track appears immediately)
+- `POST /api/tracks/chunk/init` - Initialize chunked upload session
+- `POST /api/tracks/chunk/:uploadId` - Upload a chunk (512KB max)
+- `POST /api/tracks/chunk/:uploadId/complete` - Complete chunked upload
 - `DELETE /api/tracks/:id` - Delete track and audio file
 
 **Radio State:**

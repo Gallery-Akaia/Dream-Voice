@@ -29,11 +29,11 @@ const activeUploads = new Map<string, ChunkedUpload>();
 setInterval(() => {
   const now = Date.now();
   const timeout = 10 * 60 * 1000;
-  for (const [id, upload] of activeUploads) {
+  Array.from(activeUploads.entries()).forEach(([id, upload]) => {
     if (now - upload.createdAt > timeout) {
       activeUploads.delete(id);
     }
-  }
+  });
 }, 60 * 1000);
 
 const upload = multer({
