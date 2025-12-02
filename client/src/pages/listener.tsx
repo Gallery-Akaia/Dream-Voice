@@ -32,6 +32,15 @@ export default function ListenerPage() {
   const micNextStartTimeRef = useRef(0);
   const playMicrophoneAudioRef = useRef<((base64Data: string) => Promise<void>) | null>(null);
   const lastTrackIdRef = useRef<string | null>(null);
+  const currentTrackUrlRef = useRef<string | null>(null);
+  const serverPositionRef = useRef<number>(0);
+
+  const resolveTrackUrl = useCallback((url: string): string => {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      return url;
+    }
+    return new URL(url, window.location.origin).href;
+  }, []);
 
   const readyTracks = tracks.filter(t => t.uploadStatus === "ready" || !t.uploadStatus);
   const currentTrack = readyTracks.find((t) => t.id === radioState.currentTrackId);
@@ -169,12 +178,19 @@ export default function ListenerPage() {
     }
 
     const audio = audioRef.current;
+    const resolvedUrl = resolveTrackUrl(currentTrack.fileUrl);
 
-    if (audio.src !== currentTrack.fileUrl) {
-      audio.src = currentTrack.fileUrl;
+    if (currentTrackUrlRef.current !== resolvedUrl) {
+      currentTrackUrlRef.current = resolvedUrl;
+      audio.src = resolvedUrl;
       audio.currentTime = radioState.playbackPosition;
       audio.play().catch((error) => {
         console.error("Audio playback error:", error);
+        setIsPlaying(false);
+      });
+    } else if (audio.paused) {
+      audio.play().catch((error) => {
+        console.error("Audio resume error:", error);
         setIsPlaying(false);
       });
     }
@@ -184,23 +200,27 @@ export default function ListenerPage() {
     }
 
     syncIntervalRef.current = setInterval(() => {
-      if (!audio.paused && radioState.currentTrackId === currentTrack.id) {
-        const serverPosition = radioState.playbackPosition;
+      if (!audio.paused && currentTrack) {
+        const serverPosition = serverPositionRef.current;
         const clientPosition = audio.currentTime;
         const drift = Math.abs(serverPosition - clientPosition);
 
-        if (drift > 0.5) {
+        if (drift > 2) {
           audio.currentTime = serverPosition;
         }
       }
-    }, 2000);
+    }, 3000);
 
     return () => {
       if (syncIntervalRef.current) {
         clearInterval(syncIntervalRef.current);
       }
     };
-  }, [isPlaying, currentTrack, radioState.currentTrackId, radioState.playbackPosition]);
+  }, [isPlaying, currentTrack, radioState.currentTrackId, resolveTrackUrl]);
+
+  useEffect(() => {
+    serverPositionRef.current = radioState.playbackPosition;
+  }, [radioState.playbackPosition]);
 
   useEffect(() => {
     if (!isConnected) {
@@ -222,7 +242,9 @@ export default function ListenerPage() {
     
     if (lastTrackIdRef.current !== currentTrack.id) {
       lastTrackIdRef.current = currentTrack.id;
-      audioRef.current.src = currentTrack.fileUrl;
+      const resolvedUrl = resolveTrackUrl(currentTrack.fileUrl);
+      currentTrackUrlRef.current = resolvedUrl;
+      audioRef.current.src = resolvedUrl;
       audioRef.current.currentTime = radioState.playbackPosition;
       
       if (isPlaying) {
@@ -231,7 +253,7 @@ export default function ListenerPage() {
         });
       }
     }
-  }, [currentTrack, radioState.playbackPosition, isPlaying]);
+  }, [currentTrack, isPlaying, resolveTrackUrl]);
 
   useEffect(() => {
     if (!micGainNodeRef.current) return;
@@ -252,8 +274,10 @@ export default function ListenerPage() {
     if (isPlaying) {
       audioRef.current.pause();
     } else {
-      if (!audioRef.current.src || audioRef.current.src === "") {
-        audioRef.current.src = currentTrack.fileUrl;
+      const resolvedUrl = resolveTrackUrl(currentTrack.fileUrl);
+      if (!audioRef.current.src || audioRef.current.src === "" || currentTrackUrlRef.current !== resolvedUrl) {
+        currentTrackUrlRef.current = resolvedUrl;
+        audioRef.current.src = resolvedUrl;
         audioRef.current.currentTime = radioState.playbackPosition;
       }
       audioRef.current.play().catch(err => console.error("Play error:", err));
