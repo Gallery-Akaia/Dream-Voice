@@ -12,6 +12,30 @@ import { insertAudioTrackSchema, insertUserSchema } from "@shared/schema";
 import type { RadioState } from "@shared/schema";
 import { uploadToStorage, deleteFromStorage, downloadFromStorage, getStorageUrl } from "./object-storage";
 
+interface ChunkedUpload {
+  id: string;
+  filename: string;
+  mimeType: string;
+  totalChunks: number;
+  receivedChunks: Map<number, Buffer>;
+  title: string;
+  artist: string | null;
+  duration: number;
+  createdAt: number;
+}
+
+const activeUploads = new Map<string, ChunkedUpload>();
+
+setInterval(() => {
+  const now = Date.now();
+  const timeout = 10 * 60 * 1000;
+  for (const [id, upload] of activeUploads) {
+    if (now - upload.createdAt > timeout) {
+      activeUploads.delete(id);
+    }
+  }
+}, 60 * 1000);
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -197,6 +221,156 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Fast upload error:", error);
       res.status(500).json({ error: "Failed to upload track" });
+    }
+  });
+
+  const chunkUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 2 * 1024 * 1024,
+    },
+  });
+
+  app.post("/api/tracks/chunk/init", async (req, res) => {
+    try {
+      const { filename, mimeType, totalChunks, title, artist, duration } = req.body;
+
+      if (!filename || !mimeType || !totalChunks || !duration) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const uploadId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      const chunkedUpload: ChunkedUpload = {
+        id: uploadId,
+        filename,
+        mimeType,
+        totalChunks: parseInt(totalChunks),
+        receivedChunks: new Map(),
+        title: title || filename.replace(/\.[^/.]+$/, ""),
+        artist: artist || null,
+        duration: parseInt(duration),
+        createdAt: Date.now(),
+      };
+
+      activeUploads.set(uploadId, chunkedUpload);
+
+      res.json({ uploadId, message: "Upload initialized" });
+    } catch (error) {
+      console.error("Chunk init error:", error);
+      res.status(500).json({ error: "Failed to initialize upload" });
+    }
+  });
+
+  app.post("/api/tracks/chunk/:uploadId", chunkUpload.single("chunk"), async (req, res) => {
+    try {
+      const { uploadId } = req.params;
+      const chunkIndex = parseInt(req.body.chunkIndex);
+
+      const upload = activeUploads.get(uploadId);
+      if (!upload) {
+        return res.status(404).json({ error: "Upload not found or expired" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No chunk data" });
+      }
+
+      if (isNaN(chunkIndex) || chunkIndex < 0 || chunkIndex >= upload.totalChunks) {
+        return res.status(400).json({ error: `Invalid chunk index: ${chunkIndex}` });
+      }
+
+      if (upload.receivedChunks.has(chunkIndex)) {
+        return res.status(400).json({ error: `Duplicate chunk index: ${chunkIndex}` });
+      }
+
+      upload.receivedChunks.set(chunkIndex, req.file.buffer);
+      upload.createdAt = Date.now();
+
+      const receivedCount = upload.receivedChunks.size;
+      const progress = Math.round((receivedCount / upload.totalChunks) * 100);
+
+      res.json({
+        received: receivedCount,
+        total: upload.totalChunks,
+        progress,
+      });
+    } catch (error) {
+      console.error("Chunk upload error:", error);
+      res.status(500).json({ error: "Failed to upload chunk" });
+    }
+  });
+
+  app.post("/api/tracks/chunk/:uploadId/complete", async (req, res) => {
+    try {
+      const { uploadId } = req.params;
+
+      const chunkedUpload = activeUploads.get(uploadId);
+      if (!chunkedUpload) {
+        return res.status(404).json({ error: "Upload not found or expired" });
+      }
+
+      if (chunkedUpload.receivedChunks.size !== chunkedUpload.totalChunks) {
+        return res.status(400).json({
+          error: `Missing chunks: received ${chunkedUpload.receivedChunks.size}/${chunkedUpload.totalChunks}`,
+        });
+      }
+
+      const sortedChunks: Buffer[] = [];
+      for (let i = 0; i < chunkedUpload.totalChunks; i++) {
+        const chunk = chunkedUpload.receivedChunks.get(i);
+        if (!chunk) {
+          return res.status(400).json({ error: `Missing chunk ${i}` });
+        }
+        sortedChunks.push(chunk);
+      }
+      const fileBuffer = Buffer.concat(sortedChunks);
+
+      activeUploads.delete(uploadId);
+
+      const ext = path.extname(chunkedUpload.filename);
+      const uniqueKey = `audio/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+
+      const trackData = insertAudioTrackSchema.parse({
+        title: chunkedUpload.title,
+        artist: chunkedUpload.artist,
+        duration: chunkedUpload.duration,
+        fileUrl: getStorageUrl(uniqueKey),
+        order: (await storage.getAllTracks()).length,
+        uploadStatus: "uploading",
+      });
+
+      const track = await storage.createTrack(trackData);
+
+      broadcastToClients({
+        type: "playlist_updated",
+        tracks: await storage.getAllTracks(),
+      });
+
+      res.json(track);
+
+      setImmediate(async () => {
+        try {
+          await uploadToStorage(uniqueKey, fileBuffer, chunkedUpload.mimeType);
+          await storage.updateTrack(track.id, { uploadStatus: "ready" });
+          broadcastToClients({
+            type: "track_ready",
+            trackId: track.id,
+            tracks: await storage.getAllTracks(),
+          });
+        } catch (uploadError) {
+          console.error("Background upload failed:", uploadError);
+          await storage.updateTrack(track.id, { uploadStatus: "failed" });
+          broadcastToClients({
+            type: "track_upload_failed",
+            trackId: track.id,
+            tracks: await storage.getAllTracks(),
+          });
+        }
+      });
+    } catch (error) {
+      console.error("Chunk complete error:", error);
+      res.status(500).json({ error: "Failed to complete upload" });
     }
   });
 

@@ -48,50 +48,139 @@ async function getAudioDuration(file: File): Promise<number> {
   });
 }
 
+const CHUNK_SIZE = 512 * 1024;
+
+async function uploadChunk(
+  uploadId: string,
+  chunk: Blob,
+  chunkIndex: number
+): Promise<{ received: number; total: number; progress: number }> {
+  const formData = new FormData();
+  formData.append("chunk", chunk);
+  formData.append("chunkIndex", chunkIndex.toString());
+
+  const response = await fetch(`/api/tracks/chunk/${uploadId}`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to upload chunk");
+  }
+
+  return response.json();
+}
+
 async function uploadWithProgress(
   file: File,
   duration: number,
   onProgress: (progress: number) => void
 ): Promise<AudioTrack> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const formData = new FormData();
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-    formData.append("audio", file);
-    formData.append("title", file.name.replace(/\.[^/.]+$/, ""));
-    formData.append("duration", duration.toString());
+  if (totalChunks <= 1) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
 
-    xhr.upload.addEventListener("progress", (event) => {
-      if (event.lengthComputable) {
-        const progress = Math.round((event.loaded / event.total) * 100);
-        onProgress(progress);
-      }
-    });
+      formData.append("audio", file);
+      formData.append("title", file.name.replace(/\.[^/.]+$/, ""));
+      formData.append("duration", duration.toString());
 
-    xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const response = JSON.parse(xhr.responseText);
-          resolve(response);
-        } catch {
-          reject(new Error("Invalid response"));
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress);
         }
-      } else {
-        try {
-          const error = JSON.parse(xhr.responseText);
-          reject(new Error(error.error || "Upload failed"));
-        } catch {
-          reject(new Error("Upload failed"));
+      });
+
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch {
+            reject(new Error("Invalid response"));
+          }
+        } else {
+          try {
+            const error = JSON.parse(xhr.responseText);
+            reject(new Error(error.error || "Upload failed"));
+          } catch {
+            reject(new Error("Upload failed"));
+          }
         }
-      }
+      });
+
+      xhr.addEventListener("error", () => reject(new Error("Network error")));
+      xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
+
+      xhr.open("POST", "/api/tracks/fast");
+      xhr.send(formData);
     });
+  }
 
-    xhr.addEventListener("error", () => reject(new Error("Network error")));
-    xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
-
-    xhr.open("POST", "/api/tracks/fast");
-    xhr.send(formData);
+  const initResponse = await fetch("/api/tracks/chunk/init", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filename: file.name,
+      mimeType: file.type || "audio/mpeg",
+      totalChunks,
+      title: file.name.replace(/\.[^/.]+$/, ""),
+      duration,
+    }),
   });
+
+  if (!initResponse.ok) {
+    const error = await initResponse.json();
+    throw new Error(error.error || "Failed to initialize upload");
+  }
+
+  const { uploadId } = await initResponse.json();
+
+  let uploadedChunks = 0;
+  const concurrentUploads = 3;
+
+  const chunks: { index: number; blob: Blob }[] = [];
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, file.size);
+    chunks.push({ index: i, blob: file.slice(start, end) });
+  }
+
+  const uploadQueue = [...chunks];
+
+  async function processQueue(): Promise<void> {
+    while (uploadQueue.length > 0) {
+      const chunk = uploadQueue.shift();
+      if (!chunk) break;
+
+      await uploadChunk(uploadId, chunk.blob, chunk.index);
+      uploadedChunks++;
+      const progress = Math.round((uploadedChunks / totalChunks) * 100);
+      onProgress(progress);
+    }
+  }
+
+  const workers = Array(Math.min(concurrentUploads, totalChunks))
+    .fill(null)
+    .map(() => processQueue());
+
+  await Promise.all(workers);
+
+  const completeResponse = await fetch(`/api/tracks/chunk/${uploadId}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+
+  if (!completeResponse.ok) {
+    const error = await completeResponse.json();
+    throw new Error(error.error || "Failed to complete upload");
+  }
+
+  return completeResponse.json();
 }
 
 export default function AdminPlaylist() {
