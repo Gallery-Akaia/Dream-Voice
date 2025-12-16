@@ -632,6 +632,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/radio/play-track", async (req, res) => {
+    try {
+      const { trackId } = req.body;
+
+      if (!trackId) {
+        return res.status(400).json({ error: "Track ID is required" });
+      }
+
+      const track = await storage.getTrack(trackId);
+      if (!track) {
+        return res.status(404).json({ error: "Track not found" });
+      }
+
+      if (track.uploadStatus === "uploading") {
+        return res.status(400).json({ error: "Track is still processing" });
+      }
+
+      storage.updateRadioState({
+        currentTrackId: trackId,
+        playbackPosition: 0,
+      });
+
+      broadcastToClients({
+        type: "track_changed",
+        trackId: trackId,
+        position: 0,
+      });
+
+      res.json({ success: true, trackId });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to change track" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   const wss = new WebSocketServer({ 

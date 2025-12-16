@@ -15,10 +15,11 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Trash2, Music, GripVertical, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, Trash2, Music, GripVertical, Loader2, CheckCircle2, AlertCircle, Play, Pause } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { AudioTrack } from "@shared/schema";
+import type { AudioTrack, RadioState } from "@shared/schema";
+import { useWebSocket } from "@/hooks/use-websocket";
 
 interface UploadingFile {
   id: string;
@@ -187,9 +188,29 @@ export default function AdminPlaylist() {
   const { toast } = useToast();
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { radioState } = useWebSocket();
 
   const { data: tracks, isLoading } = useQuery<AudioTrack[]>({
     queryKey: ["/api/tracks"],
+  });
+
+  const playTrackMutation = useMutation({
+    mutationFn: async (trackId: string) => {
+      await apiRequest("POST", "/api/radio/play-track", { trackId });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Now playing",
+        description: "Track is now playing for all listeners",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to play track",
+        description: "Could not start playback",
+        variant: "destructive",
+      });
+    },
   });
 
   useEffect(() => {
@@ -477,6 +498,7 @@ export default function AdminPlaylist() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-12">Play</TableHead>
                   <TableHead>Title</TableHead>
                   <TableHead>Artist</TableHead>
                   <TableHead>Duration</TableHead>
@@ -485,39 +507,67 @@ export default function AdminPlaylist() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tracks.map((track) => (
-                  <TableRow 
-                    key={track.id} 
-                    data-testid={`row-track-${track.id}`}
-                    className={track.uploadStatus === "uploading" ? "opacity-70" : ""}
-                  >
-                    <TableCell>
-                      <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
-                    </TableCell>
-                    <TableCell className="font-medium">{track.title}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {track.artist || "Unknown Artist"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatDuration(track.duration)}
-                    </TableCell>
-                    <TableCell>
-                      {getUploadStatusBadge(track.uploadStatus)}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteTrack(track.id)}
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-${track.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                        <span className="sr-only">Delete track</span>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {tracks.map((track) => {
+                  const isCurrentTrack = radioState.currentTrackId === track.id;
+                  const canPlay = track.uploadStatus !== "uploading";
+                  
+                  return (
+                    <TableRow 
+                      key={track.id} 
+                      data-testid={`row-track-${track.id}`}
+                      className={`${track.uploadStatus === "uploading" ? "opacity-70" : ""} ${isCurrentTrack ? "bg-primary/10" : ""}`}
+                    >
+                      <TableCell>
+                        <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant={isCurrentTrack ? "default" : "ghost"}
+                          size="icon"
+                          onClick={() => playTrackMutation.mutate(track.id)}
+                          disabled={!canPlay || playTrackMutation.isPending}
+                          data-testid={`button-play-${track.id}`}
+                        >
+                          {isCurrentTrack ? (
+                            <Pause className="w-4 h-4" />
+                          ) : (
+                            <Play className="w-4 h-4" />
+                          )}
+                          <span className="sr-only">Play track</span>
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {track.title}
+                        {isCurrentTrack && (
+                          <Badge variant="secondary" className="ml-2">
+                            Now Playing
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {track.artist || "Unknown Artist"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDuration(track.duration)}
+                      </TableCell>
+                      <TableCell>
+                        {getUploadStatusBadge(track.uploadStatus)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteTrack(track.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-${track.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                          <span className="sr-only">Delete track</span>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
