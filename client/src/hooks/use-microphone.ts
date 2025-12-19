@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
-const BUFFER_SIZE = 4096;
+const BUFFER_SIZE = 2048;
 
 export function useMicrophone() {
   const [isActive, setIsActive] = useState(false);

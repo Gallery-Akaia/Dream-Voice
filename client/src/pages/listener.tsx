@@ -113,19 +113,23 @@ export default function ListenerPage() {
       audioBuffer.getChannelData(0).set(pcmData);
       
       const currentTime = audioContext.currentTime;
+      const bufferDuration = pcmData.length / sampleRate;
       
-      if (micNextStartTimeRef.current < currentTime - 0.3) {
-        micNextStartTimeRef.current = currentTime + 0.05;
+      // If gap too large (>500ms), reset to avoid glitches
+      if (micNextStartTimeRef.current < currentTime - 0.5) {
+        micNextStartTimeRef.current = currentTime + 0.02;
       }
       
-      const startTime = Math.max(currentTime + 0.02, micNextStartTimeRef.current);
+      // Schedule to play immediately after the previous chunk
+      const startTime = Math.max(currentTime + 0.005, micNextStartTimeRef.current);
       
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(micGainNodeRef.current);
       source.start(startTime);
       
-      micNextStartTimeRef.current = startTime + audioBuffer.duration;
+      // Update next start time to maintain continuous playback
+      micNextStartTimeRef.current = startTime + bufferDuration;
     } catch (error) {
       console.error("Microphone audio playback error:", error);
     }

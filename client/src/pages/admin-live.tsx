@@ -64,23 +64,43 @@ export default function AdminLive() {
 
         ws.onopen = async () => {
           startMicrophone((pcmBuffer: ArrayBuffer, sampleRate: number) => {
-            if (ws.readyState === WebSocket.OPEN) {
-              const headerBuffer = new ArrayBuffer(8);
-              const headerView = new DataView(headerBuffer);
-              headerView.setUint32(0, sampleRate, true);
-              headerView.setUint32(4, pcmBuffer.byteLength, true);
-              
-              const combinedBuffer = new Uint8Array(8 + pcmBuffer.byteLength);
-              combinedBuffer.set(new Uint8Array(headerBuffer), 0);
-              combinedBuffer.set(new Uint8Array(pcmBuffer), 8);
-              
-              ws.send(combinedBuffer.buffer);
+            if (ws.readyState === WebSocket.OPEN && pcmBuffer.byteLength > 0) {
+              try {
+                const headerBuffer = new ArrayBuffer(8);
+                const headerView = new DataView(headerBuffer);
+                headerView.setUint32(0, sampleRate, true);
+                headerView.setUint32(4, pcmBuffer.byteLength, true);
+                
+                const combinedBuffer = new Uint8Array(8 + pcmBuffer.byteLength);
+                combinedBuffer.set(new Uint8Array(headerBuffer), 0);
+                combinedBuffer.set(new Uint8Array(pcmBuffer), 8);
+                
+                // Send with binary frame type for efficiency
+                ws.send(combinedBuffer.buffer);
+              } catch (error) {
+                console.error("Failed to send audio data:", error);
+              }
             }
           });
         };
 
-        // Wait a moment for WebSocket to connect before updating state
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        ws.onerror = (error) => {
+          console.error("WebSocket error:", error);
+          toast({
+            title: "Connection Error",
+            description: "Lost connection to broadcast server. Please try again.",
+            variant: "destructive",
+          });
+        };
+
+        // Wait for WebSocket to connect and establish state
+        await new Promise((resolve) => {
+          ws.onopen = () => {
+            // Start microphone immediately after WebSocket opens
+            resolve(null);
+          };
+          setTimeout(() => resolve(null), 2000); // Fallback timeout
+        });
 
         updateLiveMutation.mutate(
           { isLive: newLiveState },
@@ -95,6 +115,11 @@ export default function AdminLive() {
           }
         );
       } catch (err) {
+        stopMicrophone();
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
         toast({
           title: "Microphone Error",
           description: err instanceof Error ? err.message : "Failed to access microphone",
