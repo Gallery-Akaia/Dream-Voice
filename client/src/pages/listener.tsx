@@ -28,9 +28,12 @@ export default function ListenerPage() {
   const [streamConfig, setStreamConfig] = useState({ streamUrl: "", isEnabled: false });
   const [streamConnected, setStreamConnected] = useState(false);
   const [streamError, setStreamError] = useState<string>("");
+  const [isStreamLoading, setIsStreamLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const liveStreamRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const bufferTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const micAudioContextRef = useRef<AudioContext | null>(null);
   const micGainNodeRef = useRef<GainNode | null>(null);
   const micNextStartTimeRef = useRef(0);
@@ -38,6 +41,8 @@ export default function ListenerPage() {
   const lastTrackIdRef = useRef<string | null>(null);
   const currentTrackUrlRef = useRef<string | null>(null);
   const serverPositionRef = useRef<number>(0);
+  const isPlayingRef = useRef<boolean>(false);
+  const reconnectAttemptsRef = useRef<number>(0);
 
   const resolveTrackUrl = useCallback((url: string): string => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -161,6 +166,32 @@ export default function ListenerPage() {
         setStreamError("");
       };
       
+      const attemptReconnect = () => {
+        reconnectAttemptsRef.current += 1;
+        if (reconnectAttemptsRef.current > 5) {
+          setStreamError("Connection failed after multiple attempts. Please check the stream URL or try again later.");
+          return;
+        }
+        
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000); // Exponential backoff, max 30s
+        console.log(`Attempting reconnect ${reconnectAttemptsRef.current}/5 in ${delay}ms...`);
+        setStreamError(`Connection lost. Reconnecting in ${Math.round(delay / 1000)}s...`);
+        
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+        
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (liveStreamRef.current && streamConfig.streamUrl) {
+            liveStreamRef.current.src = streamConfig.streamUrl;
+            liveStreamRef.current.play().catch(err => {
+              console.error("Reconnect attempt failed:", err);
+              attemptReconnect();
+            });
+          }
+        }, delay);
+      };
+
       const detectErrorType = (mediaError: MediaError | null, src: string): string => {
         if (!mediaError) return "Stream unavailable";
         
@@ -173,9 +204,9 @@ export default function ListenerPage() {
             if (window.location.protocol === 'https:' && src.startsWith('http://')) {
               return "Mixed Content Error: Your site uses HTTPS but the stream URL uses HTTP. Update the stream URL to use HTTPS.";
             }
-            return "Network error: Check your internet connection or if the broadcasting server is online.";
+            return "Connection lost. Broadcaster offline or firewall/port blocked (:8000). Reconnecting...";
           case 3: // MEDIA_ERR_DECODE
-            return "Format Not Supported: Your browser cannot play this audio format. Try a different encoder (MP3, AAC, or OGG).";
+            return "Audio codec corrupted or changed. Broadcaster may have changed Winamp settings mid-stream.";
           case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
             return "Stream Format Error: This audio format isn't supported. The encoder should use MP3, AAC, or OGG Vorbis.";
           default:
@@ -193,26 +224,53 @@ export default function ListenerPage() {
           errorMessage,
         });
         setStreamConnected(false);
+        setIsStreamLoading(false);
         setStreamError(errorMessage);
+        
+        // Auto-reconnect on network errors
+        if (mediaError?.code === 2) { // MEDIA_ERR_NETWORK
+          attemptReconnect();
+        }
+      };
+      
+      const handleStreamLoadStart = () => {
+        setIsStreamLoading(true);
+        setStreamError(""); // Clear previous errors when attempting to load
+        
+        // Set buffer timeout - if still loading after 15 seconds, show stuck message
+        if (bufferTimeoutRef.current) {
+          clearTimeout(bufferTimeoutRef.current);
+        }
+        bufferTimeoutRef.current = setTimeout(() => {
+          if (isStreamLoading && !streamConnected) {
+            console.warn("Stream buffer timeout - likely too high pre-buffer on server");
+            setStreamError("Buffer stuck: Server pre-buffer too high or broadcaster offline. Check Shoutcast settings.");
+          }
+        }, 15000);
       };
       
       const handleStreamStalled = () => {
         console.warn("Stream stalled - checking connection");
-        setStreamError("Buffering... (Slow connection or server issue)");
+        if (!streamConnected) {
+          setStreamError("Buffering... (Slow connection or server waiting for data)");
+        }
       };
       
       const handleStreamSuspend = () => {
-        console.warn("Stream loading suspended");
-        setStreamError("Stream loading paused. Waiting for data...");
+        console.warn("Stream loading suspended - browser may be in power saving mode");
+        setStreamError("Stream paused by browser. Tab may be in sleep mode.");
       };
       
       const handleStreamAbort = () => {
-        console.warn("Stream loading aborted");
-        setStreamError("Stream loading stopped. The broadcaster may have disconnected.");
+        console.warn("Stream loading aborted by user agent");
+        setStreamError("AbortError: Browser stopped loading to save data. Reconnecting...");
+        setIsStreamLoading(false);
+        attemptReconnect();
       };
 
       liveStreamRef.current.addEventListener("canplay", handleStreamCanPlay);
       liveStreamRef.current.addEventListener("error", handleStreamError);
+      liveStreamRef.current.addEventListener("loadstart", handleStreamLoadStart);
       liveStreamRef.current.addEventListener("stalled", handleStreamStalled);
       liveStreamRef.current.addEventListener("suspend", handleStreamSuspend);
       liveStreamRef.current.addEventListener("abort", handleStreamAbort);
@@ -221,6 +279,7 @@ export default function ListenerPage() {
         if (liveStreamRef.current) {
           liveStreamRef.current.removeEventListener("canplay", handleStreamCanPlay);
           liveStreamRef.current.removeEventListener("error", handleStreamError);
+          liveStreamRef.current.removeEventListener("loadstart", handleStreamLoadStart);
           liveStreamRef.current.removeEventListener("stalled", handleStreamStalled);
           liveStreamRef.current.removeEventListener("suspend", handleStreamSuspend);
           liveStreamRef.current.removeEventListener("abort", handleStreamAbort);
@@ -228,6 +287,12 @@ export default function ListenerPage() {
         audio.removeEventListener("error", handleAudioError);
         if (syncIntervalRef.current) {
           clearInterval(syncIntervalRef.current);
+        }
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+        if (bufferTimeoutRef.current) {
+          clearTimeout(bufferTimeoutRef.current);
         }
         if (micAudioContextRef.current) {
           micAudioContextRef.current.close();
@@ -387,23 +452,35 @@ export default function ListenerPage() {
   // Auto-play live stream when it becomes available
   useEffect(() => {
     if (streamConfig.isEnabled && streamConfig.streamUrl && !isPlaying && liveStreamRef.current) {
-      liveStreamRef.current.src = streamConfig.streamUrl;
+      if (!liveStreamRef.current.src || liveStreamRef.current.src !== streamConfig.streamUrl) {
+        liveStreamRef.current.src = streamConfig.streamUrl;
+      }
       setStreamError(""); // Clear errors when starting new attempt
-      liveStreamRef.current.play().catch(err => {
-        console.error("Auto-play live stream failed:", err);
-        // Handle autoplay policy error
-        if (err instanceof DOMException && err.name === "NotAllowedError") {
-          setStreamError("Autoplay blocked: Click the play button to start listening.");
-        } else if (err instanceof DOMException && err.name === "NotSupportedError") {
-          setStreamError("CORS Error: The streaming server doesn't allow requests from this domain.");
-        } else {
-          setStreamError("Cannot connect to stream. Check URL or broadcaster status.");
-        }
-      });
+      isPlayingRef.current = true;
+      reconnectAttemptsRef.current = 0; // Reset reconnection attempts
+      
+      const playPromise = liveStreamRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          console.error("Auto-play live stream failed:", err);
+          isPlayingRef.current = false;
+          
+          // Handle autoplay policy error - let user click play
+          if (err instanceof DOMException && err.name === "NotAllowedError") {
+            setStreamError("Autoplay blocked: Click the play button to start listening.");
+            setIsPlaying(false);
+          } else if (err instanceof DOMException && err.name === "NotSupportedError") {
+            setStreamError("CORS Error: The streaming server doesn't allow requests from this domain.");
+          } else {
+            setStreamError("Cannot connect to stream. Check URL or broadcaster status.");
+          }
+        });
+      }
       setIsPlaying(true);
     } else if (!streamConfig.isEnabled && liveStreamRef.current && isPlaying) {
       // Stop playing if stream is disabled
       liveStreamRef.current.pause();
+      isPlayingRef.current = false;
       setIsPlaying(false);
     }
   }, [streamConfig.isEnabled, streamConfig.streamUrl]);
@@ -422,24 +499,66 @@ export default function ListenerPage() {
   }, [radioState.isLive]);
 
   const togglePlay = () => {
+    // Prevent rapid play/pause interruption errors
+    if (!liveStreamRef.current) return;
+    
     // If live stream is enabled and available, play that instead
-    if (streamConfig.isEnabled && streamConfig.streamUrl && liveStreamRef.current) {
+    if (streamConfig.isEnabled && streamConfig.streamUrl) {
       if (isPlaying) {
         liveStreamRef.current.pause();
+        isPlayingRef.current = false;
       } else {
+        // Don't attempt play if already loading
+        if (isStreamLoading) {
+          console.warn("Stream already loading, skipping play request");
+          return;
+        }
+        
         if (!liveStreamRef.current.src || liveStreamRef.current.src !== streamConfig.streamUrl) {
           liveStreamRef.current.src = streamConfig.streamUrl;
         }
-        liveStreamRef.current.play().catch(err => {
-          console.error("Live stream play error:", err);
-          // Handle autoplay policy error
-          if (err instanceof DOMException && err.name === "NotAllowedError") {
-            setStreamError("Autoplay blocked: Click the play button to start listening.");
-          } else {
-            setStreamError("Cannot play stream. Check URL or broadcaster status.");
-          }
-        });
+        
+        isPlayingRef.current = true;
+        const playPromise = liveStreamRef.current.play();
+        
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log("Stream playback started successfully");
+              reconnectAttemptsRef.current = 0; // Reset reconnect attempts on success
+            })
+            .catch(err => {
+              console.error("Live stream play error:", err);
+              isPlayingRef.current = false;
+              
+              // Handle specific error types
+              if (err instanceof DOMException) {
+                switch (err.name) {
+                  case "NotAllowedError":
+                    setStreamError("Autoplay blocked: Click the play button to start listening.");
+                    break;
+                  case "NotSupportedError":
+                    setStreamError("CORS Error: The streaming server doesn't allow requests from this domain.");
+                    break;
+                  case "AbortError":
+                    setStreamError("AbortError: Browser stopped playback. Trying again...");
+                    // Retry after brief delay
+                    setTimeout(() => {
+                      if (isPlayingRef.current && liveStreamRef.current) {
+                        liveStreamRef.current.play().catch(() => {
+                          setStreamError("Cannot reconnect to stream.");
+                        });
+                      }
+                    }, 500);
+                    break;
+                  default:
+                    setStreamError(`Play error: ${err.message || "Cannot play stream. Check URL or broadcaster status."}`);
+                }
+              }
+            });
+        }
       }
+      
       setIsPlaying(!isPlaying);
       return;
     }
