@@ -104,6 +104,15 @@ export default function AdminAudioSources() {
       return;
     }
 
+    if (isTesting) {
+      toast({
+        title: "Test in progress",
+        description: "Audio test is already running. Stop it first before starting a new test.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Clean up any existing test first
     cleanupAudio();
 
@@ -186,11 +195,13 @@ export default function AdminAudioSources() {
     if (isTesting) {
       stopTest();
     }
-    selectDevice(device.deviceId);
-    toast({
-      title: "Device selected",
-      description: `${device.label} will be used for broadcasting`,
-    });
+    if (device?.deviceId) {
+      selectDevice(device.deviceId);
+      toast({
+        title: "Device selected",
+        description: `${device.label} will be used for broadcasting`,
+      });
+    }
   };
 
   const getDeviceIcon = (device: AudioDevice) => {
@@ -458,7 +469,7 @@ export default function AdminAudioSources() {
               <Button
                 variant={isTesting ? "destructive" : "default"}
                 onClick={isTesting ? stopTest : startTest}
-                disabled={!selectedDeviceId}
+                disabled={!selectedDeviceId || isLoading}
                 className="self-start sm:self-auto flex-shrink-0"
                 data-testid="button-test-audio"
               >
