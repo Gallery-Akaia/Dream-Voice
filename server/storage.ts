@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type AudioTrack, type InsertAudioTrack, type RadioState, type ChatMessage, type ListenerAnalytics } from "@shared/schema";
+import { type User, type InsertUser, type AudioTrack, type InsertAudioTrack, type RadioState, type ChatMessage, type ListenerAnalytics, type StreamConfig } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -21,6 +21,9 @@ export interface IStorage {
   
   recordListenerAnalytics(count: number): void;
   getListenerAnalytics(minutesBack: number): ListenerAnalytics[];
+  
+  getStreamConfig(): StreamConfig;
+  updateStreamConfig(config: Partial<StreamConfig>): void;
 }
 
 export class MemStorage implements IStorage {
@@ -29,6 +32,7 @@ export class MemStorage implements IStorage {
   private radioState: RadioState;
   private chatMessages: ChatMessage[] = [];
   private listenerAnalytics: ListenerAnalytics[] = [];
+  private streamConfig: StreamConfig;
 
   constructor() {
     this.users = new Map();
@@ -39,6 +43,10 @@ export class MemStorage implements IStorage {
       isLive: false,
       backgroundVolume: 30,
       listenerCount: 0,
+    };
+    this.streamConfig = {
+      streamUrl: "",
+      isEnabled: false,
     };
   }
 
@@ -128,6 +136,14 @@ export class MemStorage implements IStorage {
   getListenerAnalytics(minutesBack: number): ListenerAnalytics[] {
     const cutoff = Date.now() - minutesBack * 60 * 1000;
     return this.listenerAnalytics.filter(a => a.timestamp >= cutoff);
+  }
+
+  getStreamConfig(): StreamConfig {
+    return { ...this.streamConfig };
+  }
+
+  updateStreamConfig(config: Partial<StreamConfig>): void {
+    this.streamConfig = { ...this.streamConfig, ...config };
   }
 }
 

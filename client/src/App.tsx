@@ -15,6 +15,7 @@ import AdminAnalytics from "@/pages/admin-analytics";
 import AdminPlaylist from "@/pages/admin-playlist";
 import AdminAudioSources from "@/pages/admin-audio-sources";
 import AdminLive from "@/pages/admin-live";
+import AdminStreamConfig from "@/pages/admin-stream";
 
 function AdminLayout({ children }: { children: React.ReactNode }) {
   const style = {
@@ -69,6 +70,11 @@ function Router() {
       <Route path="/admin/live">
         <AdminLayout>
           <AdminLive />
+        </AdminLayout>
+      </Route>
+      <Route path="/admin/stream">
+        <AdminLayout>
+          <AdminStreamConfig />
         </AdminLayout>
       </Route>
       <Route component={NotFound} />

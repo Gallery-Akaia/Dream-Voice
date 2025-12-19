@@ -35,6 +35,12 @@ const menuItems = [
     testId: "link-playlist",
   },
   {
+    title: "Live Stream",
+    url: "/admin/stream",
+    icon: Radio,
+    testId: "link-stream",
+  },
+  {
     title: "Audio Sources",
     url: "/admin/audio-sources",
     icon: Settings2,

@@ -25,6 +25,7 @@ export default function ListenerPage() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [streamConfig, setStreamConfig] = useState({ streamUrl: "", isEnabled: false });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const micAudioContextRef = useRef<AudioContext | null>(null);
@@ -179,7 +180,11 @@ export default function ListenerPage() {
         
         if (typeof event.data === 'string') {
           const data = JSON.parse(event.data);
-          if (data.type === "chat_message") {
+          if (data.type === "initial_state" && data.streamConfig) {
+            setStreamConfig(data.streamConfig);
+          } else if (data.type === "stream_config_updated" && data.config) {
+            setStreamConfig(data.config);
+          } else if (data.type === "chat_message") {
             const newMessage: ChatMessage = {
               id: Math.random().toString(),
               username: data.username,

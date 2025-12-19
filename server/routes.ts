@@ -666,6 +666,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/stream/config", async (req, res) => {
+    try {
+      const config = storage.getStreamConfig();
+      res.json(config);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch stream config" });
+    }
+  });
+
+  app.post("/api/stream/config", async (req, res) => {
+    try {
+      const { streamUrl, isEnabled } = req.body;
+
+      if (streamUrl && !isValidUrl(streamUrl)) {
+        return res.status(400).json({ error: "Invalid stream URL" });
+      }
+
+      storage.updateStreamConfig({
+        streamUrl: streamUrl !== undefined ? streamUrl : storage.getStreamConfig().streamUrl,
+        isEnabled: isEnabled !== undefined ? isEnabled : storage.getStreamConfig().isEnabled,
+      });
+
+      const config = storage.getStreamConfig();
+
+      broadcastToClients({
+        type: "stream_config_updated",
+        config: config,
+      });
+
+      res.json(config);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update stream config" });
+    }
+  });
+
+  function isValidUrl(string: string): boolean {
+    try {
+      new URL(string);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   const httpServer = createServer(app);
 
   const wss = new WebSocketServer({ 
@@ -682,10 +726,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     storage.recordListenerAnalytics(connectedClients.size);
 
     const tracks = await storage.getAllTracks();
+    const streamConfig = storage.getStreamConfig();
     ws.send(JSON.stringify({
       type: "initial_state",
       state: currentState,
       tracks: tracks,
+      streamConfig: streamConfig,
     }));
 
     broadcastToClients({

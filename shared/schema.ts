@@ -57,3 +57,8 @@ export interface ListenerAnalytics {
   timestamp: number;
   listenerCount: number;
 }
+
+export interface StreamConfig {
+  streamUrl: string;
+  isEnabled: boolean;
+}
