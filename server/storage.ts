@@ -77,7 +77,15 @@ export class MemStorage implements IStorage {
 
   async createTrack(insertTrack: InsertAudioTrack): Promise<AudioTrack> {
     const id = randomUUID();
-    const track: AudioTrack = { ...insertTrack, id, uploadStatus: insertTrack.uploadStatus || "ready" };
+    const track: AudioTrack = {
+      id,
+      title: insertTrack.title,
+      artist: insertTrack.artist || null,
+      duration: insertTrack.duration,
+      fileUrl: insertTrack.fileUrl,
+      order: insertTrack.order || 0,
+      uploadStatus: insertTrack.uploadStatus || "ready",
+    };
     this.tracks.set(id, track);
     return track;
   }

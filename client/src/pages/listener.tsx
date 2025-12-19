@@ -26,7 +26,10 @@ export default function ListenerPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [streamConfig, setStreamConfig] = useState({ streamUrl: "", isEnabled: false });
+  const [streamConnected, setStreamConnected] = useState(false);
+  const [streamError, setStreamError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const liveStreamRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const micAudioContextRef = useRef<AudioContext | null>(null);
   const micGainNodeRef = useRef<GainNode | null>(null);
@@ -146,6 +149,49 @@ export default function ListenerPage() {
     };
 
     audio.addEventListener("error", handleAudioError);
+
+    // Setup live stream audio element for low-latency streaming
+    if (!liveStreamRef.current) {
+      liveStreamRef.current = new Audio();
+      liveStreamRef.current.preload = "none";
+      liveStreamRef.current.crossOrigin = "anonymous";
+      
+      const handleStreamCanPlay = () => {
+        setStreamConnected(true);
+        setStreamError(false);
+      };
+      
+      const handleStreamError = (e: Event) => {
+        const mediaError = (e.target as HTMLAudioElement).error;
+        console.error("Live stream error:", {
+          code: mediaError?.code,
+          message: mediaError?.message,
+          src: liveStreamRef.current?.src,
+        });
+        setStreamConnected(false);
+        setStreamError(true);
+      };
+
+      liveStreamRef.current.addEventListener("canplay", handleStreamCanPlay);
+      liveStreamRef.current.addEventListener("error", handleStreamError);
+      liveStreamRef.current.addEventListener("stalled", () => {
+        console.warn("Stream stalled - checking connection");
+      });
+
+      return () => {
+        if (liveStreamRef.current) {
+          liveStreamRef.current.removeEventListener("canplay", handleStreamCanPlay);
+          liveStreamRef.current.removeEventListener("error", handleStreamError);
+        }
+        audio.removeEventListener("error", handleAudioError);
+        if (syncIntervalRef.current) {
+          clearInterval(syncIntervalRef.current);
+        }
+        if (micAudioContextRef.current) {
+          micAudioContextRef.current.close();
+        }
+      };
+    }
 
     return () => {
       audio.removeEventListener("error", handleAudioError);
@@ -273,6 +319,9 @@ export default function ListenerPage() {
     if (!audioRef.current) return;
     const volumeLevel = isMuted ? 0 : volume[0] / 100;
     audioRef.current.volume = volumeLevel;
+    if (liveStreamRef.current) {
+      liveStreamRef.current.volume = volumeLevel;
+    }
   }, [isMuted, volume]);
 
   useEffect(() => {
@@ -293,6 +342,22 @@ export default function ListenerPage() {
     }
   }, [currentTrack, isPlaying, resolveTrackUrl]);
 
+  // Auto-play live stream when it becomes available
+  useEffect(() => {
+    if (streamConfig.isEnabled && streamConfig.streamUrl && !isPlaying && liveStreamRef.current) {
+      liveStreamRef.current.src = streamConfig.streamUrl;
+      liveStreamRef.current.play().catch(err => {
+        console.error("Auto-play live stream failed:", err);
+        setStreamError(true);
+      });
+      setIsPlaying(true);
+    } else if (!streamConfig.isEnabled && liveStreamRef.current && isPlaying) {
+      // Stop playing if stream is disabled
+      liveStreamRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [streamConfig.isEnabled, streamConfig.streamUrl]);
+
   useEffect(() => {
     if (!micGainNodeRef.current) return;
     const volumeLevel = isMuted ? 0 : volume[0] / 100;
@@ -307,6 +372,24 @@ export default function ListenerPage() {
   }, [radioState.isLive]);
 
   const togglePlay = () => {
+    // If live stream is enabled and available, play that instead
+    if (streamConfig.isEnabled && streamConfig.streamUrl && liveStreamRef.current) {
+      if (isPlaying) {
+        liveStreamRef.current.pause();
+      } else {
+        if (!liveStreamRef.current.src || liveStreamRef.current.src !== streamConfig.streamUrl) {
+          liveStreamRef.current.src = streamConfig.streamUrl;
+        }
+        liveStreamRef.current.play().catch(err => {
+          console.error("Live stream play error:", err);
+          setStreamError(true);
+        });
+      }
+      setIsPlaying(!isPlaying);
+      return;
+    }
+
+    // Fall back to playlist playback
     if (!audioRef.current || !currentTrack) return;
     
     if (isPlaying) {
@@ -497,6 +580,25 @@ export default function ListenerPage() {
               </div>
             </div>
 
+            {streamConfig.isEnabled && streamConfig.streamUrl && (
+              <div className={`p-3 rounded-lg text-center text-sm flex items-center justify-center gap-2 ${
+                streamConnected 
+                  ? "bg-green-50 dark:bg-green-950 text-green-900 dark:text-green-100" 
+                  : streamError
+                  ? "bg-red-50 dark:bg-red-950 text-red-900 dark:text-red-100"
+                  : "bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-100"
+              }`} data-testid="text-stream-status">
+                <div className={`w-2 h-2 rounded-full ${
+                  streamConnected 
+                    ? "bg-green-600 dark:bg-green-400 animate-pulse" 
+                    : streamError
+                    ? "bg-red-600 dark:bg-red-400"
+                    : "bg-blue-600 dark:bg-blue-400 animate-pulse"
+                }`} />
+                {streamConnected ? "Live stream connected" : streamError ? "Stream connection failed" : "Connecting to live stream..."}
+              </div>
+            )}
+
             {!isConnected && (
               <div className="text-center text-sm text-destructive font-medium">
                 Connection lost. Trying to reconnect...
@@ -520,6 +622,7 @@ export default function ListenerPage() {
         username={username}
       />
       <audio ref={audioRef} />
+      <audio ref={liveStreamRef} data-testid="audio-live-stream" />
     </div>
   );
 }
