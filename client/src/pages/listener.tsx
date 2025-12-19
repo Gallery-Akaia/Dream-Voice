@@ -146,11 +146,14 @@ export default function ListenerPage() {
     
     const handleAudioError = (e: Event) => {
       const mediaError = (e.target as HTMLAudioElement).error;
-      console.error("Audio element error:", {
-        code: mediaError?.code,
-        message: mediaError?.message,
-        src: audio.src,
-      });
+      // Only log error if there's actually a source URL set
+      if (audio.src) {
+        console.error("Audio element error:", {
+          code: mediaError?.code,
+          message: mediaError?.message,
+          src: audio.src,
+        });
+      }
     };
 
     audio.addEventListener("error", handleAudioError);

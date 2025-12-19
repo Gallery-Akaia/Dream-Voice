@@ -77,24 +77,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log("Default admin user created (username: admin, password: admin123)");
   }
 
-  // Initialize hardcoded tracks in storage
-  const existingTracks = await storage.getAllTracks();
-  if (existingTracks.length === 0) {
-    await storage.createTrack({
-      title: "Test",
-      artist: "System",
-      duration: 5,
-      fileUrl: "/test-audio.mp3",
-      order: 0,
-    });
-    await storage.createTrack({
-      title: "Test 2",
-      artist: "System",
-      duration: 9,
-      fileUrl: "/test-audio-2.mp3",
-      order: 1,
-    });
-  }
 
   app.post("/api/auth/login", async (req, res) => {
     try {
