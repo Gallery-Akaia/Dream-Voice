@@ -27,7 +27,7 @@ export default function ListenerPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [streamConfig, setStreamConfig] = useState({ streamUrl: "", isEnabled: false });
   const [streamConnected, setStreamConnected] = useState(false);
-  const [streamError, setStreamError] = useState(false);
+  const [streamError, setStreamError] = useState<string>("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const liveStreamRef = useRef<HTMLAudioElement | null>(null);
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -158,30 +158,72 @@ export default function ListenerPage() {
       
       const handleStreamCanPlay = () => {
         setStreamConnected(true);
-        setStreamError(false);
+        setStreamError("");
+      };
+      
+      const detectErrorType = (mediaError: MediaError | null, src: string): string => {
+        if (!mediaError) return "Stream unavailable";
+        
+        // Error code detection
+        switch (mediaError.code) {
+          case 1: // MEDIA_ERR_ABORTED
+            return "Stream aborted. The broadcaster may have disconnected.";
+          case 2: // MEDIA_ERR_NETWORK
+            // Try to determine if it's mixed content or network error
+            if (window.location.protocol === 'https:' && src.startsWith('http://')) {
+              return "Mixed Content Error: Your site uses HTTPS but the stream URL uses HTTP. Update the stream URL to use HTTPS.";
+            }
+            return "Network error: Check your internet connection or if the broadcasting server is online.";
+          case 3: // MEDIA_ERR_DECODE
+            return "Format Not Supported: Your browser cannot play this audio format. Try a different encoder (MP3, AAC, or OGG).";
+          case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
+            return "Stream Format Error: This audio format isn't supported. The encoder should use MP3, AAC, or OGG Vorbis.";
+          default:
+            return "Stream error. Check the stream URL or broadcaster status.";
+        }
       };
       
       const handleStreamError = (e: Event) => {
         const mediaError = (e.target as HTMLAudioElement).error;
+        const errorMessage = detectErrorType(mediaError, liveStreamRef.current?.src || "");
         console.error("Live stream error:", {
           code: mediaError?.code,
           message: mediaError?.message,
           src: liveStreamRef.current?.src,
+          errorMessage,
         });
         setStreamConnected(false);
-        setStreamError(true);
+        setStreamError(errorMessage);
+      };
+      
+      const handleStreamStalled = () => {
+        console.warn("Stream stalled - checking connection");
+        setStreamError("Buffering... (Slow connection or server issue)");
+      };
+      
+      const handleStreamSuspend = () => {
+        console.warn("Stream loading suspended");
+        setStreamError("Stream loading paused. Waiting for data...");
+      };
+      
+      const handleStreamAbort = () => {
+        console.warn("Stream loading aborted");
+        setStreamError("Stream loading stopped. The broadcaster may have disconnected.");
       };
 
       liveStreamRef.current.addEventListener("canplay", handleStreamCanPlay);
       liveStreamRef.current.addEventListener("error", handleStreamError);
-      liveStreamRef.current.addEventListener("stalled", () => {
-        console.warn("Stream stalled - checking connection");
-      });
+      liveStreamRef.current.addEventListener("stalled", handleStreamStalled);
+      liveStreamRef.current.addEventListener("suspend", handleStreamSuspend);
+      liveStreamRef.current.addEventListener("abort", handleStreamAbort);
 
       return () => {
         if (liveStreamRef.current) {
           liveStreamRef.current.removeEventListener("canplay", handleStreamCanPlay);
           liveStreamRef.current.removeEventListener("error", handleStreamError);
+          liveStreamRef.current.removeEventListener("stalled", handleStreamStalled);
+          liveStreamRef.current.removeEventListener("suspend", handleStreamSuspend);
+          liveStreamRef.current.removeEventListener("abort", handleStreamAbort);
         }
         audio.removeEventListener("error", handleAudioError);
         if (syncIntervalRef.current) {
@@ -346,9 +388,17 @@ export default function ListenerPage() {
   useEffect(() => {
     if (streamConfig.isEnabled && streamConfig.streamUrl && !isPlaying && liveStreamRef.current) {
       liveStreamRef.current.src = streamConfig.streamUrl;
+      setStreamError(""); // Clear errors when starting new attempt
       liveStreamRef.current.play().catch(err => {
         console.error("Auto-play live stream failed:", err);
-        setStreamError(true);
+        // Handle autoplay policy error
+        if (err instanceof DOMException && err.name === "NotAllowedError") {
+          setStreamError("Autoplay blocked: Click the play button to start listening.");
+        } else if (err instanceof DOMException && err.name === "NotSupportedError") {
+          setStreamError("CORS Error: The streaming server doesn't allow requests from this domain.");
+        } else {
+          setStreamError("Cannot connect to stream. Check URL or broadcaster status.");
+        }
       });
       setIsPlaying(true);
     } else if (!streamConfig.isEnabled && liveStreamRef.current && isPlaying) {
@@ -382,7 +432,12 @@ export default function ListenerPage() {
         }
         liveStreamRef.current.play().catch(err => {
           console.error("Live stream play error:", err);
-          setStreamError(true);
+          // Handle autoplay policy error
+          if (err instanceof DOMException && err.name === "NotAllowedError") {
+            setStreamError("Autoplay blocked: Click the play button to start listening.");
+          } else {
+            setStreamError("Cannot play stream. Check URL or broadcaster status.");
+          }
         });
       }
       setIsPlaying(!isPlaying);
@@ -588,14 +643,20 @@ export default function ListenerPage() {
                   ? "bg-red-50 dark:bg-red-950 text-red-900 dark:text-red-100"
                   : "bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-100"
               }`} data-testid="text-stream-status">
-                <div className={`w-2 h-2 rounded-full ${
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                   streamConnected 
                     ? "bg-green-600 dark:bg-green-400 animate-pulse" 
                     : streamError
                     ? "bg-red-600 dark:bg-red-400"
                     : "bg-blue-600 dark:bg-blue-400 animate-pulse"
                 }`} />
-                {streamConnected ? "Live stream connected" : streamError ? "Stream connection failed" : "Connecting to live stream..."}
+                <span className="text-left">
+                  {streamConnected 
+                    ? "Live stream connected" 
+                    : streamError 
+                    ? streamError 
+                    : "Connecting to live stream..."}
+                </span>
               </div>
             )}
 
