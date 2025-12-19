@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,14 @@ export default function AdminStreamConfig() {
     refetchInterval: 5000,
   });
 
+  // Sync state with config when it loads
+  useEffect(() => {
+    if (config) {
+      setStreamUrl(config.streamUrl);
+      setIsEnabled(config.isEnabled);
+    }
+  }, [config]);
+
   const updateStreamMutation = useMutation({
     mutationFn: async (data: { streamUrl?: string; isEnabled?: boolean }) =>
       apiRequest("POST", "/api/stream/config", data),
@@ -38,9 +46,17 @@ export default function AdminStreamConfig() {
   });
 
   const handleSave = () => {
+    if (!streamUrl.trim()) {
+      toast({
+        variant: "destructive",
+        description: "Please enter a valid stream URL",
+      });
+      return;
+    }
+    
     updateStreamMutation.mutate({
-      streamUrl: streamUrl || undefined,
-      isEnabled: isEnabled || undefined,
+      streamUrl: streamUrl.trim(),
+      isEnabled: isEnabled,
     });
   };
 
@@ -71,9 +87,9 @@ export default function AdminStreamConfig() {
               id="stream-url"
               data-testid="input-stream-url"
               placeholder="http://server-ip:port/stream"
-              value={streamUrl || config?.streamUrl || ""}
+              value={streamUrl}
               onChange={(e) => setStreamUrl(e.target.value)}
-              disabled={updateStreamMutation.isPending}
+              disabled={updateStreamMutation.isPending || isLoading}
             />
             <p className="text-sm text-secondary">
               Example: http://192.168.1.100:8000/live or http://radio.example.com:8080/stream
@@ -90,9 +106,9 @@ export default function AdminStreamConfig() {
             <Switch
               id="enable-stream"
               data-testid="switch-enable-stream"
-              checked={isEnabled || config?.isEnabled || false}
+              checked={isEnabled}
               onCheckedChange={setIsEnabled}
-              disabled={updateStreamMutation.isPending}
+              disabled={updateStreamMutation.isPending || isLoading}
             />
           </div>
 
@@ -113,7 +129,7 @@ export default function AdminStreamConfig() {
             </div>
           )}
 
-          {!config?.isEnabled || !config?.streamUrl && (
+          {(!config?.isEnabled || !config?.streamUrl) && (
             <div className="flex items-start gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-950">
               <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
               <div>
@@ -134,7 +150,8 @@ export default function AdminStreamConfig() {
             onClick={handleSave}
             disabled={
               updateStreamMutation.isPending ||
-              (!streamUrl && !config?.streamUrl)
+              isLoading ||
+              !streamUrl.trim()
             }
             className="w-full"
           >
