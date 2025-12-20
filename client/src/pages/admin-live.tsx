@@ -81,7 +81,7 @@ export default function AdminLive() {
                 console.error("Failed to send audio data:", error);
               }
             }
-          });
+          }, selectedDeviceId);
         };
 
         ws.onerror = (error) => {
