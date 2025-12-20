@@ -207,9 +207,8 @@ export function useMicrophone() {
       const workletSuccess = await setupWithWorklet(audioContext, source, sampleRate);
       if (!workletSuccess) {
         const isScriptProcessorAvailable = typeof audioContext.createScriptProcessor === 'function';
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         
-        if (!isScriptProcessorAvailable || isMobile) {
+        if (!isScriptProcessorAvailable) {
           cleanupAudio();
           setError("Live audio is not supported on this device. Please try using a desktop browser.");
           setPermission("denied");
