@@ -103,12 +103,16 @@ export default function AdminLive() {
           });
         };
 
-        // Wait for WebSocket to connect and establish state
+        // Wait for WebSocket to connect
         await new Promise((resolve) => {
-          ws.onopen = () => {
-            // Start microphone immediately after WebSocket opens
-            resolve(null);
+          const checkConnection = () => {
+            if (ws.readyState === WebSocket.OPEN) {
+              resolve(null);
+            } else {
+              setTimeout(checkConnection, 100);
+            }
           };
+          checkConnection();
           setTimeout(() => resolve(null), 2000); // Fallback timeout
         });
 
