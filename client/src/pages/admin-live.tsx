@@ -5,22 +5,25 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { LiveIndicator } from "@/components/live-indicator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mic, Radio, Users, Volume2, AlertCircle, Settings2 } from "lucide-react";
+import { Mic, Radio, Users, Volume2, AlertCircle, Settings2, Monitor } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMicrophone } from "@/hooks/use-microphone";
+import { useSystemAudio } from "@/hooks/use-system-audio";
 import { useAudioDevices } from "@/hooks/use-audio-devices";
 import { speak } from "@/lib/text-to-speech";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { Link } from "wouter";
 import type { RadioState } from "@shared/schema";
 
 export default function AdminLive() {
   const { toast } = useToast();
+  const [audioMode, setAudioMode] = useState<"microphone" | "system">("microphone");
   const { isActive, micLevel, error, currentDeviceId, startMicrophone, stopMicrophone } = useMicrophone();
+  const { isActive: systemAudioActive, audioLevel: systemAudioLevel, error: systemAudioError, startSystemAudio, stopSystemAudio } = useSystemAudio();
   const { devices, selectedDeviceId } = useAudioDevices();
   const wsRef = useRef<WebSocket | null>(null);
   
@@ -44,26 +47,27 @@ export default function AdminLive() {
   useEffect(() => {
     return () => {
       stopMicrophone();
+      stopSystemAudio();
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
     };
-  }, [stopMicrophone]);
+  }, [stopMicrophone, stopSystemAudio]);
 
   const handleGoLive = async () => {
     const newLiveState = !radioState?.isLive;
     
     if (newLiveState) {
-      // Going live - request microphone access
+      // Going live - request audio access
       try {
-        // Connect to WebSocket for microphone streaming
+        // Connect to WebSocket for audio streaming
         const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws`);
         wsRef.current = ws;
 
         ws.onopen = async () => {
-          startMicrophone((pcmBuffer: ArrayBuffer, sampleRate: number) => {
+          const sendAudioCallback = (pcmBuffer: ArrayBuffer, sampleRate: number) => {
             if (ws.readyState === WebSocket.OPEN && pcmBuffer.byteLength > 0) {
               try {
                 const headerBuffer = new ArrayBuffer(8);
@@ -81,7 +85,13 @@ export default function AdminLive() {
                 console.error("Failed to send audio data:", error);
               }
             }
-          }, selectedDeviceId);
+          };
+
+          if (audioMode === "system") {
+            startSystemAudio(sendAudioCallback);
+          } else {
+            startMicrophone(sendAudioCallback, selectedDeviceId);
+          }
         };
 
         ws.onerror = (error) => {
@@ -106,29 +116,33 @@ export default function AdminLive() {
           { isLive: newLiveState },
           {
             onSuccess: () => {
-              speak("You're live. Broadcasting microphone to all listeners now.");
+              const msg = audioMode === "system" ? "system audio" : "microphone";
+              speak(`You're live. Broadcasting ${msg} to all listeners now.`);
               toast({
                 title: "You're live!",
-                description: "Broadcasting microphone to all listeners now.",
+                description: `Broadcasting ${msg} to all listeners now.`,
               });
             },
           }
         );
       } catch (err) {
         stopMicrophone();
+        stopSystemAudio();
         if (wsRef.current) {
           wsRef.current.close();
           wsRef.current = null;
         }
+        const errMsg = audioMode === "system" ? "system audio" : "microphone";
         toast({
-          title: "Microphone Error",
-          description: err instanceof Error ? err.message : "Failed to access microphone",
+          title: `${audioMode === "system" ? "System Audio" : "Microphone"} Error`,
+          description: err instanceof Error ? err.message : `Failed to access ${errMsg}`,
           variant: "destructive",
         });
       }
     } else {
       // Ending live broadcast
       stopMicrophone();
+      stopSystemAudio();
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -155,6 +169,7 @@ export default function AdminLive() {
 
   const handleEmergencyStop = () => {
     stopMicrophone();
+    stopSystemAudio();
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -201,6 +216,9 @@ export default function AdminLive() {
   const isLive = radioState?.isLive || false;
   const backgroundVolume = radioState?.backgroundVolume || 30;
   const listenerCount = radioState?.listenerCount || 0;
+  const currentAudioError = audioMode === "system" ? systemAudioError : error;
+  const currentIsActive = audioMode === "system" ? systemAudioActive : isActive;
+  const currentAudioLevel = audioMode === "system" ? systemAudioLevel : micLevel;
 
   return (
     <div className="space-y-6">
@@ -284,29 +302,74 @@ export default function AdminLive() {
           <CardContent className="space-y-6">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Audio Source</Label>
-                <Link href="/admin/audio-sources">
-                  <Button variant="ghost" size="sm" data-testid="button-configure-audio">
-                    <Settings2 className="w-4 h-4 mr-1" />
-                    Configure
-                  </Button>
-                </Link>
+                <Label className="text-sm font-medium">Broadcast Mode</Label>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant={audioMode === "microphone" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setAudioMode("microphone")}
+                  className="flex-1"
+                  data-testid="button-mode-microphone"
+                >
+                  <Mic className="w-4 h-4 mr-1" />
+                  Microphone
+                </Button>
+                <Button
+                  variant={audioMode === "system" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setAudioMode("system")}
+                  className="flex-1"
+                  data-testid="button-mode-system"
+                >
+                  <Monitor className="w-4 h-4 mr-1" />
+                  System Audio
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {audioMode === "system" 
+                  ? "Broadcasts all audio from your computer (browser tabs, apps, etc.)" 
+                  : "Broadcasts from your microphone or connected mixer"}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">
+                  {audioMode === "system" ? "System Audio Source" : "Audio Device"}
+                </Label>
+                {audioMode === "microphone" && (
+                  <Link href="/admin/audio-sources">
+                    <Button variant="ghost" size="sm" data-testid="button-configure-audio">
+                      <Settings2 className="w-4 h-4 mr-1" />
+                      Configure
+                    </Button>
+                  </Link>
+                )}
               </div>
               <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
                 <div className="p-2 rounded-md bg-primary/10">
-                  <Mic className="w-4 h-4 text-primary" />
+                  {audioMode === "system" ? (
+                    <Monitor className="w-4 h-4 text-primary" />
+                  ) : (
+                    <Mic className="w-4 h-4 text-primary" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate" data-testid="text-selected-device">
-                    {selectedDevice?.label || "Default Audio Input"}
+                    {audioMode === "system"
+                      ? "Computer Audio"
+                      : selectedDevice?.label || "Default Audio Input"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {isActive && activeDevice 
-                      ? `Broadcasting from: ${activeDevice.label}` 
-                      : "Selected for broadcast"}
+                    {audioMode === "system"
+                      ? currentIsActive ? "Broadcasting system audio" : "Select source when going live"
+                      : currentIsActive && activeDevice 
+                        ? `Broadcasting from: ${activeDevice.label}` 
+                        : "Selected for broadcast"}
                   </p>
                 </div>
-                {isActive && (
+                {currentIsActive && (
                   <Badge variant="default" className="shrink-0">Active</Badge>
                 )}
               </div>
@@ -314,15 +377,18 @@ export default function AdminLive() {
             
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label htmlFor="mic-level" className="text-sm font-medium">
-                  Input Level
+                <Label htmlFor="audio-level" className="text-sm font-medium">
+                  {audioMode === "system" ? "System Audio" : "Input"} Level
                 </Label>
-                <span className="text-sm text-muted-foreground">{isActive ? `${micLevel}%` : "Inactive"}</span>
+                <span className="text-sm text-muted-foreground">{currentIsActive ? `${currentAudioLevel}%` : "Inactive"}</span>
               </div>
-              <Progress value={isActive ? micLevel : 0} className="h-2" id="mic-level" />
+              <Progress value={currentIsActive ? currentAudioLevel : 0} className="h-2" id="audio-level" />
               <p className="text-xs text-muted-foreground">
-                {isActive ? "Audio is being captured" : "Start broadcast to see audio levels"}
+                {currentIsActive ? "Audio is being captured" : "Start broadcast to see audio levels"}
               </p>
+              {currentAudioError && (
+                <p className="text-xs text-destructive">{currentAudioError}</p>
+              )}
             </div>
 
             <div className="space-y-3">
