@@ -7,6 +7,15 @@ import { LiveIndicator } from "@/components/live-indicator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Mic, Radio, Users, Volume2, AlertCircle, Settings2, Monitor } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +31,8 @@ import type { RadioState } from "@shared/schema";
 export default function AdminLive() {
   const { toast } = useToast();
   const [audioMode, setAudioMode] = useState<"microphone" | "system">("microphone");
+  const [showSystemAudioPrompt, setShowSystemAudioPrompt] = useState(false);
+  const [systemAudioConfirmed, setSystemAudioConfirmed] = useState(false);
   const { isActive, micLevel, error, currentDeviceId, startMicrophone, stopMicrophone } = useMicrophone();
   const { isActive: systemAudioActive, audioLevel: systemAudioLevel, error: systemAudioError, startSystemAudio, stopSystemAudio } = useSystemAudio();
   const { devices, selectedDeviceId } = useAudioDevices();
@@ -312,7 +323,10 @@ export default function AdminLive() {
                 <Button
                   variant={audioMode === "microphone" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setAudioMode("microphone")}
+                  onClick={() => {
+                    setAudioMode("microphone");
+                    setSystemAudioConfirmed(false);
+                  }}
                   className="flex-1"
                   data-testid="button-mode-microphone"
                 >
@@ -322,7 +336,9 @@ export default function AdminLive() {
                 <Button
                   variant={audioMode === "system" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setAudioMode("system")}
+                  onClick={() => {
+                    setShowSystemAudioPrompt(true);
+                  }}
                   className="flex-1"
                   data-testid="button-mode-system"
                 >
@@ -432,6 +448,36 @@ export default function AdminLive() {
           your mixer or audio device in the <Link href="/admin/audio-sources" className="font-medium underline underline-offset-4" data-testid="link-audio-sources-inline">Audio Sources</Link> settings.
         </AlertDescription>
       </Alert>
+
+      <AlertDialog open={showSystemAudioPrompt} onOpenChange={setShowSystemAudioPrompt} data-testid="dialog-system-audio-confirm">
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enable System Audio Capture?</AlertDialogTitle>
+            <AlertDialogDescription>
+              When you go live with system audio, all audio playing on your computer will be broadcast to listeners—this includes audio from web browsers, applications, music, videos, and any other sound source on your laptop.
+              
+              This is ideal when your phone connects to your laptop to broadcast all content seamlessly.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogAction
+            onClick={() => {
+              setAudioMode("system");
+              setSystemAudioConfirmed(true);
+              setShowSystemAudioPrompt(false);
+              toast({
+                title: "System Audio Enabled",
+                description: "All laptop audio will be captured when you go live.",
+              });
+            }}
+            data-testid="button-confirm-system-audio"
+          >
+            Broadcast All Laptop Audio
+          </AlertDialogAction>
+          <AlertDialogCancel data-testid="button-cancel-system-audio">
+            Stay with Microphone
+          </AlertDialogCancel>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
