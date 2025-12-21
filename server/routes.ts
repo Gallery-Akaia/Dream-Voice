@@ -695,8 +695,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
   const wss = new WebSocketServer({ 
-    server: httpServer, 
-    path: "/ws"
+    noServer: true
+  });
+
+  // Handle WebSocket upgrade at HTTP server level (before Express middleware)
+  httpServer.on('upgrade', (request, socket, head) => {
+    if (request.url === '/ws') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    } else {
+      socket.destroy();
+    }
   });
 
   wss.on("connection", async (ws) => {
