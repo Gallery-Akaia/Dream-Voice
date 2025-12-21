@@ -1,6 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
-const BUFFER_SIZE = 2048;
+const BUFFER_SIZE = 4096;
+
+// Convert Float32 PCM to Int16 PCM for more efficient transmission
+function float32ToInt16(float32Array: Float32Array): Int16Array {
+  const int16Array = new Int16Array(float32Array.length);
+  for (let i = 0; i < float32Array.length; i++) {
+    let sample = Math.max(-1, Math.min(1, float32Array[i]));
+    int16Array[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  }
+  return int16Array;
+}
 
 export function useSystemAudio() {
   const [isActive, setIsActive] = useState(false);
@@ -124,7 +134,9 @@ export function useSystemAudio() {
     processor.onaudioprocess = (event) => {
       if (onAudioDataRef.current) {
         const inputData = event.inputBuffer.getChannelData(0);
-        const buffer = new Float32Array(inputData).buffer;
+        // Convert Float32 to Int16 for efficient transmission
+        const int16Data = float32ToInt16(inputData);
+        const buffer = int16Data.buffer;
         onAudioDataRef.current(buffer, sampleRate);
       }
     };
