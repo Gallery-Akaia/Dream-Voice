@@ -143,14 +143,29 @@ export function useSystemAudio() {
     try {
       setError(null);
       
-      // Use getDisplayMedia to capture system audio
+      // Use getDisplayMedia to capture all system audio (including Bluetooth audio)
+      // This captures the audio being sent to your system's audio output device
       const stream = await (navigator.mediaDevices as any).getDisplayMedia({
         audio: {
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
         },
-        video: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: 'screen'
+          }
+        },
+      } as any).catch(async () => {
+        // Fallback for browsers that handle video differently
+        return (navigator.mediaDevices as any).getDisplayMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+          video: true,
+        } as any);
       });
 
       streamRef.current = stream;
