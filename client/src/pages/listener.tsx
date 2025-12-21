@@ -86,7 +86,12 @@ export default function ListenerPage() {
       }
       
       const pcmSlice = arrayBuffer.slice(8, 8 + pcmByteLength);
-      const pcmData = new Float32Array(pcmSlice);
+      // Convert Int16 to Float32
+      const int16Data = new Int16Array(pcmSlice);
+      const pcmData = new Float32Array(int16Data.length);
+      for (let i = 0; i < int16Data.length; i++) {
+        pcmData[i] = int16Data[i] / 0x8000;
+      }
       
       if (!micAudioContextRef.current) {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
