@@ -31,11 +31,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Upload, Trash2, Music, GripVertical, Loader2, CheckCircle2, AlertCircle, Play, Pause, Settings2, FileAudio, Plus } from "lucide-react";
 
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile, toBlobURL } from "@ffmpeg/util";
+
 export default function AdminPlaylist() {
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const ffmpegRef = useRef<FFmpeg | null>(null);
+
+  const loadFFmpeg = async () => {
+    if (ffmpegRef.current) return ffmpegRef.current;
+    
+    const ffmpeg = new FFmpeg();
+    const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+    });
+    ffmpegRef.current = ffmpeg;
+    return ffmpeg;
+  };
 
   const { data: tracks = [], isLoading } = useQuery<AudioTrack[]>({
     queryKey: ["/api/tracks"],
@@ -154,50 +171,32 @@ export default function AdminPlaylist() {
 
       if (isVideo) {
         toast({
-          title: "Converting video",
-          description: "Extracting audio locally...",
+          title: "Processing Video",
+          description: "Extracting audio locally for faster upload...",
         });
         
-        // Optimistic UI: Use a temporary blob for metadata instead of waiting for server
-        const video = document.createElement('video');
-        video.preload = 'metadata';
-        video.src = URL.createObjectURL(file);
+        const ffmpeg = await loadFFmpeg();
+        const inputName = "input" + file.name.substring(file.name.lastIndexOf("."));
+        const outputName = "output.mp3";
         
-        duration = await new Promise((resolve) => {
-          video.onloadedmetadata = () => {
-            const d = video.duration;
-            URL.revokeObjectURL(video.src);
-            resolve(d);
-          };
-          video.onerror = () => {
-            URL.revokeObjectURL(video.src);
-            resolve(0);
-          };
+        await ffmpeg.writeFile(inputName, await fetchFile(file));
+        
+        ffmpeg.on("progress", ({ progress }) => {
+          setUploadProgress(Math.round(progress * 50));
         });
 
-        const formData = new FormData();
-        formData.append("video", file);
+        await ffmpeg.exec(["-i", inputName, "-vn", "-ar", "44100", "-ac", "2", "-b:a", "128k", outputName]);
         
-        const convertRes = await fetch("/api/tracks/fast-supabase", {
-          method: "POST",
-          body: formData,
-        });
+        const data = await ffmpeg.readFile(outputName);
+        fileToUpload = new File([data], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
         
-        if (!convertRes.ok) throw new Error("Video conversion failed");
-        
-        const { buffer } = await convertRes.json();
-        const binaryString = atob(buffer);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        fileToUpload = new File([bytes], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
+        // Get duration locally after conversion
+        duration = await getAudioDuration(fileToUpload);
       } else {
         duration = await getAudioDuration(file);
       }
 
-      setUploadProgress(20);
+      setUploadProgress(60);
 
       // 1. Upload to Supabase Storage
       const fileExt = isVideo ? 'mp3' : file.name.split('.').pop();

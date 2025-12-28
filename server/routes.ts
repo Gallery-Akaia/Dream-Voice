@@ -136,39 +136,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tracks/fast-supabase", upload.single("video"), async (req, res) => {
+  app.post("/api/tracks/fast-supabase", async (req, res) => {
     try {
-      if (!req.file) {
-        // Fallback for when metadata is sent without a file (from frontend direct upload)
-        const trackData = insertAudioTrackSchema.parse(req.body);
-        const track = await storage.createTrack(trackData);
-        broadcastToClients({
-          type: "playlist_updated",
-          tracks: await storage.getAllTracks(),
-        });
-        return res.json(track);
-      }
+      const trackData = insertAudioTrackSchema.parse(req.body);
+      const track = await storage.createTrack(trackData);
 
-      // Handle video to audio conversion before Supabase upload
-      const fs = await import("fs/promises");
-      const tempPath = path.join(process.cwd(), "uploads", `temp-video-${Date.now()}${path.extname(req.file.originalname)}`);
-      const outputPath = path.join(process.cwd(), "uploads", `temp-audio-${Date.now()}.mp3`);
-      
-      await fs.writeFile(tempPath, req.file.buffer);
-      // Use faster presets for ffmpeg conversion: -preset ultrafast -threads 0
-      execSync(`ffmpeg -i "${tempPath}" -vn -ar 44100 -ac 2 -b:a 128k -f mp3 "${outputPath}" -y -loglevel quiet -threads 0`);
-      const audioBuffer = await fs.readFile(outputPath);
-      
-      const metadata = await parseFile(outputPath);
-      const duration = Math.ceil(metadata.format.duration || 0);
-      
-      await fs.unlink(tempPath).catch(() => {});
-      await fs.unlink(outputPath).catch(() => {});
+      broadcastToClients({
+        type: "playlist_updated",
+        tracks: await storage.getAllTracks(),
+      });
 
-      res.json({ buffer: audioBuffer.toString('base64'), duration });
+      res.json(track);
     } catch (error) {
-      console.error("Video conversion error:", error);
-      res.status(500).json({ error: "Failed to convert video" });
+      console.error("Supabase track save error:", error);
+      res.status(500).json({ error: "Failed to save track reference" });
     }
   });
 
