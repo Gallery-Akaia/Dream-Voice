@@ -154,6 +154,7 @@ export default function AdminPlaylist() {
         uploadStatus: "ready"
       };
 
+      console.log("Saving track to DB:", newTrack);
       await apiRequest("POST", "/api/tracks/fast-supabase", newTrack);
       
       setUploadProgress(100);

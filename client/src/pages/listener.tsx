@@ -408,11 +408,12 @@ export default function ListenerPage() {
         const clientPosition = audio.currentTime;
         const drift = Math.abs(serverPosition - clientPosition);
 
-        if (drift > 2) {
+        // More aggressive sync: 0.5s drift threshold instead of 2s
+        if (drift > 0.5) {
           audio.currentTime = serverPosition;
         }
       }
-    }, 3000);
+    }, 1000); // Check every second instead of 3s
 
     return () => {
       if (syncIntervalRef.current) {
