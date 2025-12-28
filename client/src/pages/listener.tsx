@@ -46,6 +46,10 @@ export default function ListenerPage() {
 
   const resolveTrackUrl = useCallback((url: string): string => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
+      // Force public Supabase URL if it's pointing to the storage
+      if (url.includes(".supabase.co/storage/v1/object/public/")) {
+        return url;
+      }
       return url;
     }
     return new URL(url, window.location.origin).href;

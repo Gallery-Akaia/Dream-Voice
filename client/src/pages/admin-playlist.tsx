@@ -103,6 +103,30 @@ export default function AdminPlaylist() {
     },
   });
 
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const getAudioDuration = (file: File): Promise<number> => {
+    const audio = new Audio();
+    const objectUrl = URL.createObjectURL(file);
+    
+    return new Promise((resolve) => {
+      audio.onloadedmetadata = () => {
+        const duration = audio.duration;
+        URL.revokeObjectURL(objectUrl);
+        resolve(duration);
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(0);
+      };
+      audio.src = objectUrl;
+    });
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -123,6 +147,10 @@ export default function AdminPlaylist() {
     try {
       setIsUploading(true);
       setUploadProgress(10);
+
+      // 0. Get duration
+      const duration = await getAudioDuration(file);
+      setUploadProgress(20);
 
       // 1. Upload to Supabase Storage
       const fileExt = file.name.split('.').pop();
@@ -148,7 +176,7 @@ export default function AdminPlaylist() {
       const newTrack = {
         title: file.name.replace(/\.[^/.]+$/, ""),
         artist: "Unknown Artist",
-        duration: 0, 
+        duration: Math.ceil(duration) || 180, 
         fileUrl: publicUrl,
         order: tracks.length,
         uploadStatus: "ready"
@@ -175,12 +203,6 @@ export default function AdminPlaylist() {
       setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -310,4 +332,3 @@ export default function AdminPlaylist() {
     </div>
   );
 }
-
