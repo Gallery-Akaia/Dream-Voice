@@ -49,3 +49,9 @@ waitForPort = 5000
 
 [agent]
 integrations = ["javascript_websocket:1.0.0", "javascript_mem_db:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_URL = "https://lllyxntweiaisvrbonen.supabase.co/"
+SUPABASE_ANON_KEY = "sb_publishable_Q8giHTMbruJLVpvl6-mKog_kvmsmrbu"

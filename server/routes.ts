@@ -136,6 +136,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/tracks/fast-supabase", async (req, res) => {
+    try {
+      const trackData = insertAudioTrackSchema.parse(req.body);
+      const track = await storage.createTrack(trackData);
+
+      broadcastToClients({
+        type: "playlist_updated",
+        tracks: await storage.getAllTracks(),
+      });
+
+      res.json(track);
+    } catch (error) {
+      console.error("Supabase track save error:", error);
+      res.status(500).json({ error: "Failed to save track reference" });
+    }
+  });
+
   app.get("/api/tracks", async (req, res) => {
     try {
       const tracks = await storage.getAllTracks();
