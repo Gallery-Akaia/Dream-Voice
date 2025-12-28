@@ -136,20 +136,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tracks/fast-supabase", async (req, res) => {
+  app.post("/api/tracks/fast-supabase", upload.single("video"), async (req, res) => {
     try {
-      const trackData = insertAudioTrackSchema.parse(req.body);
-      const track = await storage.createTrack(trackData);
+      if (!req.file) {
+        // Fallback for when metadata is sent without a file (from frontend direct upload)
+        const trackData = insertAudioTrackSchema.parse(req.body);
+        const track = await storage.createTrack(trackData);
+        broadcastToClients({
+          type: "playlist_updated",
+          tracks: await storage.getAllTracks(),
+        });
+        return res.json(track);
+      }
 
-      broadcastToClients({
-        type: "playlist_updated",
-        tracks: await storage.getAllTracks(),
-      });
+      // Handle video to audio conversion before Supabase upload
+      const fs = await import("fs/promises");
+      const tempPath = path.join(process.cwd(), "uploads", `temp-video-${Date.now()}${path.extname(req.file.originalname)}`);
+      const outputPath = path.join(process.cwd(), "uploads", `temp-audio-${Date.now()}.mp3`);
+      
+      await fs.writeFile(tempPath, req.file.buffer);
+      execSync(`ffmpeg -i "${tempPath}" -q:a 5 -map a "${outputPath}" -y -loglevel quiet`);
+      const audioBuffer = await fs.readFile(outputPath);
+      
+      const metadata = await parseFile(outputPath);
+      const duration = Math.ceil(metadata.format.duration || 0);
+      
+      await fs.unlink(tempPath).catch(() => {});
+      await fs.unlink(outputPath).catch(() => {});
 
-      res.json(track);
+      res.json({ buffer: audioBuffer.toString('base64'), duration });
     } catch (error) {
-      console.error("Supabase track save error:", error);
-      res.status(500).json({ error: "Failed to save track reference" });
+      console.error("Video conversion error:", error);
+      res.status(500).json({ error: "Failed to convert video" });
     }
   });
 

@@ -146,20 +146,51 @@ export default function AdminPlaylist() {
 
     try {
       setIsUploading(true);
-      setUploadProgress(10);
+      setUploadProgress(5);
 
-      // 0. Get duration
-      const duration = await getAudioDuration(file);
+      const isVideo = file.type.startsWith('video/');
+      let fileToUpload = file;
+      let duration = 0;
+
+      if (isVideo) {
+        toast({
+          title: "Converting video",
+          description: "Extracting audio from your video file...",
+        });
+        
+        const formData = new FormData();
+        formData.append("video", file);
+        
+        const convertRes = await fetch("/api/tracks/fast-supabase", {
+          method: "POST",
+          body: formData,
+        });
+        
+        if (!convertRes.ok) throw new Error("Video conversion failed");
+        
+        const { buffer, duration: d } = await convertRes.json();
+        const binaryString = atob(buffer);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        fileToUpload = new File([bytes], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
+        duration = d;
+      } else {
+        duration = await getAudioDuration(file);
+      }
+
       setUploadProgress(20);
 
       // 1. Upload to Supabase Storage
-      const fileExt = file.name.split('.').pop();
+      const fileExt = isVideo ? 'mp3' : file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
       const filePath = `uploads/${fileName}`;
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('audio-files')
-        .upload(filePath, file, {
+        .upload(filePath, fileToUpload, {
           cacheControl: '3600',
           upsert: false,
         });
