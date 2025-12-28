@@ -155,7 +155,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const outputPath = path.join(process.cwd(), "uploads", `temp-audio-${Date.now()}.mp3`);
       
       await fs.writeFile(tempPath, req.file.buffer);
-      execSync(`ffmpeg -i "${tempPath}" -q:a 5 -map a "${outputPath}" -y -loglevel quiet`);
+      // Use faster presets for ffmpeg conversion: -preset ultrafast -threads 0
+      execSync(`ffmpeg -i "${tempPath}" -vn -ar 44100 -ac 2 -b:a 128k -f mp3 "${outputPath}" -y -loglevel quiet -threads 0`);
       const audioBuffer = await fs.readFile(outputPath);
       
       const metadata = await parseFile(outputPath);

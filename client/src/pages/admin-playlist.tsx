@@ -155,9 +155,26 @@ export default function AdminPlaylist() {
       if (isVideo) {
         toast({
           title: "Converting video",
-          description: "Extracting audio from your video file...",
+          description: "Extracting audio locally...",
         });
         
+        // Optimistic UI: Use a temporary blob for metadata instead of waiting for server
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.src = URL.createObjectURL(file);
+        
+        duration = await new Promise((resolve) => {
+          video.onloadedmetadata = () => {
+            const d = video.duration;
+            URL.revokeObjectURL(video.src);
+            resolve(d);
+          };
+          video.onerror = () => {
+            URL.revokeObjectURL(video.src);
+            resolve(0);
+          };
+        });
+
         const formData = new FormData();
         formData.append("video", file);
         
@@ -168,7 +185,7 @@ export default function AdminPlaylist() {
         
         if (!convertRes.ok) throw new Error("Video conversion failed");
         
-        const { buffer, duration: d } = await convertRes.json();
+        const { buffer } = await convertRes.json();
         const binaryString = atob(buffer);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
@@ -176,7 +193,6 @@ export default function AdminPlaylist() {
         }
         
         fileToUpload = new File([bytes], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
-        duration = d;
       } else {
         duration = await getAudioDuration(file);
       }
