@@ -275,14 +275,14 @@ export default function AdminAudioSources() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 opacity-50 pointer-events-none grayscale">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight" data-testid="text-audio-sources-title">
-            Audio Sources
+            Audio Sources <Settings2 className="inline w-6 h-6 ml-2" />
           </h1>
           <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-            Connect your mixer or audio device for broadcasting
+            Admin Only: Audio device configuration is locked
           </p>
         </div>
         <Button

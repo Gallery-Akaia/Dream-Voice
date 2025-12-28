@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LiveIndicator } from "@/components/live-indicator";
-import { Music, Users, Radio as RadioIcon, Clock } from "lucide-react";
+import { Music, Users, Radio as RadioIcon, Clock, Settings2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AudioTrack, RadioState } from "@shared/schema";
 
@@ -23,16 +23,16 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="opacity-50 pointer-events-none">
         <h1 className="text-3xl font-semibold tracking-tight" data-testid="text-dashboard-title">
-          Dashboard
+          Dashboard <Settings2 className="inline w-6 h-6 ml-2" />
         </h1>
         <p className="text-muted-foreground mt-1">
-          Welcome to RADIO DREAM VOICE admin panel
+          Admin Only: Status overview is locked
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 opacity-50 pointer-events-none grayscale">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">

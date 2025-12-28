@@ -65,11 +65,13 @@ export default function AdminStreamConfig() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 opacity-50 pointer-events-none grayscale">
       <div>
-        <h1 className="text-3xl font-bold">Live Stream Configuration</h1>
+        <h1 className="text-3xl font-bold">
+          Live Stream Configuration <Settings2 className="inline w-6 h-6 ml-2" />
+        </h1>
         <p className="text-secondary mt-2">
-          Configure your Shoutcast/Icecast streaming server
+          Admin Only: Server configuration is locked
         </p>
       </div>
 

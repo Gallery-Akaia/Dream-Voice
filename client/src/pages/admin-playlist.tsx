@@ -471,106 +471,23 @@ export default function AdminPlaylist() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="opacity-50 pointer-events-none grayscale">
         <CardHeader>
-          <CardTitle>Playlist ({tracks?.length || 0} tracks)</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-2xl">
+            Playlist Management <Settings2 className="w-5 h-5" />
+          </CardTitle>
           <CardDescription>
-            Manage the order and content of your playlist
+            Admin Only: Tracks and playback controls are locked
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : !tracks || tracks.length === 0 ? (
-            <div className="text-center py-12">
-              <Music className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-semibold mb-2">No tracks uploaded</h3>
-              <p className="text-sm text-muted-foreground">
-                Upload audio files to start building your playlist
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead className="w-12">Play</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Artist</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tracks.map((track) => {
-                  const isCurrentTrack = radioState.currentTrackId === track.id;
-                  const canPlay = track.uploadStatus !== "uploading";
-                  
-                  return (
-                    <TableRow 
-                      key={track.id} 
-                      data-testid={`row-track-${track.id}`}
-                      className={`${track.uploadStatus === "uploading" ? "opacity-70" : ""} ${isCurrentTrack ? "bg-primary/10" : ""}`}
-                    >
-                      <TableCell>
-                        <GripVertical className="w-4 h-4 text-muted-foreground cursor-grab" />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant={isCurrentTrack ? "default" : "ghost"}
-                          size="icon"
-                          onClick={() => playTrackMutation.mutate(track.id)}
-                          disabled={!canPlay || playTrackMutation.isPending}
-                          data-testid={`button-play-${track.id}`}
-                        >
-                          {isCurrentTrack ? (
-                            <Pause className="w-4 h-4" />
-                          ) : (
-                            <Play className="w-4 h-4" />
-                          )}
-                          <span className="sr-only">Play track</span>
-                        </Button>
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {track.title}
-                        {isCurrentTrack && (
-                          <Badge variant="secondary" className="ml-2">
-                            Now Playing
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {track.artist || "Unknown Artist"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDuration(track.duration)}
-                      </TableCell>
-                      <TableCell>
-                        {getUploadStatusBadge(track.uploadStatus)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteTrack(track.id)}
-                          disabled={deleteMutation.isPending}
-                          data-testid={`button-delete-${track.id}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                          <span className="sr-only">Delete track</span>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
+          <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+            <Music className="w-16 h-16 text-muted-foreground" />
+            <h3 className="text-xl font-semibold">Playlist Locked</h3>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Only the Administrator can manage tracks and control playback.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

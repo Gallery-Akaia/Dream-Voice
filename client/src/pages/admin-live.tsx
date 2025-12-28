@@ -236,13 +236,13 @@ export default function AdminLive() {
   const currentAudioLevel = audioMode === "system" ? systemAudioLevel : micLevel;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 opacity-50 pointer-events-none grayscale">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight" data-testid="text-live-title">
-          Live Controls
+          Live Controls <Settings2 className="inline w-6 h-6 ml-2" />
         </h1>
         <p className="text-muted-foreground">
-          Broadcast live to your listeners
+          Admin Only: Broadcasting controls are locked
         </p>
       </div>
 

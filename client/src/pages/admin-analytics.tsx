@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Users, TrendingUp } from "lucide-react";
+import { Users, TrendingUp, Settings2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface AnalyticsData {
@@ -33,13 +33,13 @@ export default function AdminAnalytics() {
     : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 opacity-50 pointer-events-none grayscale">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight" data-testid="text-analytics-title">
-          Listener Analytics
+          Listener Analytics <Settings2 className="inline w-6 h-6 ml-2" />
         </h1>
         <p className="text-muted-foreground">
-          Real-time monitoring of your radio station's audience
+          Admin Only: Listener statistics are locked
         </p>
       </div>
 

@@ -17,6 +17,15 @@ import { BarChart3 } from "lucide-react";
 
 const menuItems = [
   {
+    title: "Playlist Manager",
+    url: "/admin/playlist",
+    icon: Music,
+    testId: "link-playlist",
+  },
+];
+
+const adminMenuItems = [
+  {
     title: "Dashboard",
     url: "/admin/dashboard",
     icon: LayoutDashboard,
@@ -27,12 +36,6 @@ const menuItems = [
     url: "/admin/analytics",
     icon: BarChart3,
     testId: "link-analytics",
-  },
-  {
-    title: "Playlist Manager",
-    url: "/admin/playlist",
-    icon: Music,
-    testId: "link-playlist",
   },
   {
     title: "Live Stream",
@@ -91,6 +94,27 @@ export function AppSidebar() {
                       <item.icon className="w-4 h-4" />
                       <span>{item.title}</span>
                     </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup className="opacity-50 pointer-events-none">
+          <SidebarGroupLabel className="flex items-center gap-2">
+            Admin Functions <Settings2 className="w-3 h-3" />
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {adminMenuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    disabled
+                    data-testid={`${item.testId}-locked`}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
