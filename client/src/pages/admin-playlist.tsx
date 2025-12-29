@@ -47,49 +47,57 @@ export default function AdminPlaylist() {
     const ffmpeg = new FFmpeg();
     const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
     
-    // Log loading state for debugging
-    console.log("Loading FFmpeg.wasm core...");
+    console.log("[FFmpeg] Loading core...");
     
     await ffmpeg.load({
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
       wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
     });
     ffmpegRef.current = ffmpeg;
+    console.log("[FFmpeg] Core loaded successfully");
     return ffmpeg;
   };
 
   const extractAudioLocally = async (file: File) => {
+    console.log(`[Processing] Starting extraction for: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     const ffmpeg = await loadFFmpeg();
     const inputName = "input_" + Date.now() + file.name.substring(file.name.lastIndexOf("."));
     const outputName = "output_" + Date.now() + ".mp3";
     
+    console.log("[FFmpeg] Writing input file to virtual FS...");
     await ffmpeg.writeFile(inputName, await fetchFile(file));
     
-    // Most optimized settings for speed: 
-    // -threads 0: use all workers
-    // -q:a 9: lowest quality (but fastest) for test
-    // -preset ultrafast (if applicable to audio codecs)
+    ffmpeg.on("log", ({ message }) => {
+      if (message.includes("size=") || message.includes("time=")) {
+        console.log(`[FFmpeg Log] ${message}`);
+      }
+    });
+
+    console.log("[FFmpeg] Executing conversion...");
     await ffmpeg.exec([
       "-i", inputName,
       "-vn",
-      "-ar", "22050", // Lower sample rate for faster processing
-      "-ac", "1",     // Mono instead of stereo for speed
-      "-b:a", "64k",  // Lower bitrate for faster processing
+      "-ar", "22050",
+      "-ac", "1",
+      "-b:a", "64k",
       "-threads", "0",
       outputName
     ]);
     
+    console.log("[FFmpeg] Reading output file...");
     const data = await ffmpeg.readFile(outputName);
     
-    // Clean up virtual files
+    console.log("[Processing] Extraction complete. Cleaning up virtual FS...");
     try {
       await ffmpeg.deleteFile(inputName);
       await ffmpeg.deleteFile(outputName);
     } catch (e) {
-      console.warn("Clean up failed", e);
+      console.warn("[Processing] Cleanup warning:", e);
     }
     
-    return new File([data], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
+    const audioFile = new File([data], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
+    console.log(`[Processing] Final audio size: ${(audioFile.size / 1024 / 1024).toFixed(2)} MB`);
+    return audioFile;
   };
 
   const { data: tracks = [], isLoading } = useQuery<AudioTrack[]>({
@@ -240,6 +248,7 @@ export default function AdminPlaylist() {
       setUploadProgress(60);
 
       // 1. Upload to Supabase Storage with better error handling and progress tracking
+      console.log("[Supabase] Starting upload to storage...");
       console.time("SupabaseUpload");
       const fileExt = isVideo ? 'mp3' : file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
@@ -254,16 +263,20 @@ export default function AdminPlaylist() {
         });
 
       if (uploadError) {
+        console.error("[Supabase] Upload failed:", uploadError);
         console.timeEnd("SupabaseUpload");
         throw uploadError;
       }
       console.timeEnd("SupabaseUpload");
+      console.log("[Supabase] Upload successful");
       setUploadProgress(60);
 
       // 2. Get Public URL
+      console.log("[Supabase] Fetching public URL...");
       const { data: { publicUrl } } = supabase.storage
         .from('audio-files')
         .getPublicUrl(filePath);
+      console.log("[Supabase] Public URL retrieved:", publicUrl);
 
       // 3. Save to Database via API
       const newTrack = {
@@ -275,8 +288,9 @@ export default function AdminPlaylist() {
         uploadStatus: "ready"
       };
 
-      console.log("Saving track to DB with duration:", newTrack.duration);
+      console.log("[Database] Saving track info:", newTrack);
       await apiRequest("POST", "/api/tracks/fast-supabase", newTrack);
+      console.log("[Database] Save successful");
       
       setUploadProgress(100);
       toast({
