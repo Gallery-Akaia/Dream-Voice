@@ -46,7 +46,7 @@ export default function ListenerPage() {
 
   const resolveTrackUrl = useCallback((url: string): string => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
-      // Ensure we don't double-append origin
+      // If it's a Supabase URL, try to proxy it or ensure it's absolute
       return url;
     }
     // For local dev / relative paths
@@ -389,6 +389,7 @@ export default function ListenerPage() {
 
     if (currentTrackUrlRef.current !== resolvedUrl) {
       currentTrackUrlRef.current = resolvedUrl;
+      audio.crossOrigin = "anonymous";
       audio.src = resolvedUrl;
       audio.currentTime = radioState.playbackPosition;
       audio.play().catch((error) => {

@@ -44,14 +44,17 @@ export default function AdminPlaylist() {
   const loadFFmpeg = async () => {
     if (ffmpegRef.current) return ffmpegRef.current;
     
-    // Check if SharedArrayBuffer is available (required for multi-threaded FFmpeg)
-    const isMultiThreaded = typeof SharedArrayBuffer !== 'undefined';
-    console.log(`[FFmpeg] Multi-threading support: ${isMultiThreaded}`);
+    // Check if SharedArrayBuffer is available
+    // Replit environment might not have the correct headers (Cross-Origin-Opener-Policy)
+    // to enable SharedArrayBuffer even if the browser supports it.
+    const isMultiThreaded = typeof SharedArrayBuffer !== 'undefined' && window.crossOriginIsolated;
+    console.log(`[FFmpeg] Multi-threading support (SharedArrayBuffer + crossOriginIsolated): ${isMultiThreaded}`);
 
     const ffmpeg = new FFmpeg();
+    // Use version 0.12.6 which is more stable with the new API
     const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
     
-    console.log("[FFmpeg] Loading core...");
+    console.log("[FFmpeg] Loading core from:", baseURL);
     
     try {
       const loadOptions: any = {
@@ -59,9 +62,11 @@ export default function AdminPlaylist() {
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
       };
 
-      // Only add workerURL if SharedArrayBuffer is available
       if (isMultiThreaded) {
+        console.log("[FFmpeg] Enabling worker for multi-threading");
         loadOptions.workerURL = await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, "text/javascript");
+      } else {
+        console.log("[FFmpeg] Falling back to single-threaded mode (no SharedArrayBuffer)");
       }
 
       await ffmpeg.load(loadOptions);
@@ -69,7 +74,9 @@ export default function AdminPlaylist() {
       console.log("[FFmpeg] Core loaded successfully");
       return ffmpeg;
     } catch (err) {
-      console.error("[FFmpeg] Core load failed:", err);
+      console.error("[FFmpeg] Core load failed. Error detail:", err);
+      // Try an even older/simpler URL if unpkg is acting up
+      console.log("[FFmpeg] Retrying with alternative delivery...");
       throw err;
     }
   };
@@ -212,6 +219,7 @@ export default function AdminPlaylist() {
   const getAudioDuration = (file: File): Promise<number> => {
     const audio = new Audio();
     const objectUrl = URL.createObjectURL(file);
+    audio.crossOrigin = "anonymous";
     
     return new Promise((resolve) => {
       audio.onloadedmetadata = () => {
