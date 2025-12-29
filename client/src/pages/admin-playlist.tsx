@@ -103,13 +103,14 @@ export default function AdminPlaylist() {
     console.log("[3/5] Starting high-speed conversion (this is the heavy lifting)...");
     try {
       // Use standard ffmpeg parameters for audio extraction to MP3
+      // Removed -acodec libmp3lame to let ffmpeg choose the best available or use -c:a mp3
       await ffmpeg.exec([
         "-i", inputName,
         "-vn",                   // Disable video
-        "-acodec", "libmp3lame", // Force MP3 codec
+        "-c:a", "libmp3lame",    // Force MP3 codec
+        "-q:a", "2",             // High quality VBR
         "-ar", "44100",          // 44.1kHz sample rate
         "-ac", "2",              // Stereo
-        "-b:a", "192k",          // 192kbps bitrate
         "-y",                    // Overwrite output
         outputName
       ]);
