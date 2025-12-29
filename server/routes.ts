@@ -595,7 +595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/radio/state", async (req, res) => {
     try {
-      const state = storage.getRadioState();
+      const state = await storage.getRadioState();
       res.json(state);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch radio state" });
@@ -604,7 +604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/analytics", async (req, res) => {
     try {
-      const analytics = storage.getListenerAnalytics(60);
+      const analytics = await storage.getListenerAnalytics(60);
       res.json(analytics);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch analytics" });
@@ -614,18 +614,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/radio/live", async (req, res) => {
     try {
       const { isLive, backgroundVolume } = req.body;
+      const currentState = await storage.getRadioState();
 
-      storage.updateRadioState({
-        isLive: isLive !== undefined ? isLive : storage.getRadioState().isLive,
-        backgroundVolume: backgroundVolume !== undefined ? backgroundVolume : storage.getRadioState().backgroundVolume,
+      await storage.updateRadioState({
+        isLive: isLive !== undefined ? isLive : currentState.isLive,
+        backgroundVolume: backgroundVolume !== undefined ? backgroundVolume : currentState.backgroundVolume,
       });
+
+      const updatedState = await storage.getRadioState();
 
       broadcastToClients({
         type: "radio_state_updated",
-        state: storage.getRadioState(),
+        state: updatedState,
       });
 
-      res.json(storage.getRadioState());
+      res.json(updatedState);
     } catch (error) {
       res.status(500).json({ error: "Failed to update live state" });
     }
@@ -648,7 +651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Track is still processing" });
       }
 
-      storage.updateRadioState({
+      await storage.updateRadioState({
         currentTrackId: trackId,
         playbackPosition: 0,
       });
@@ -667,7 +670,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/stream/config", async (req, res) => {
     try {
-      const config = storage.getStreamConfig();
+      const config = await storage.getStreamConfig();
       res.json(config);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch stream config" });
@@ -677,17 +680,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/stream/config", async (req, res) => {
     try {
       const { streamUrl, isEnabled } = req.body;
+      const currentConfig = await storage.getStreamConfig();
 
       if (streamUrl && !isValidUrl(streamUrl)) {
         return res.status(400).json({ error: "Invalid stream URL" });
       }
 
-      storage.updateStreamConfig({
-        streamUrl: streamUrl !== undefined ? streamUrl : storage.getStreamConfig().streamUrl,
-        isEnabled: isEnabled !== undefined ? isEnabled : storage.getStreamConfig().isEnabled,
+      await storage.updateStreamConfig({
+        streamUrl: streamUrl !== undefined ? streamUrl : currentConfig.streamUrl,
+        isEnabled: isEnabled !== undefined ? isEnabled : currentConfig.isEnabled,
       });
 
-      const config = storage.getStreamConfig();
+      const config = await storage.getStreamConfig();
 
       broadcastToClients({
         type: "stream_config_updated",
@@ -730,13 +734,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   wss.on("connection", async (ws) => {
     connectedClients.add(ws);
     
-    const currentState = storage.getRadioState();
+    const currentState = await storage.getRadioState();
     currentState.listenerCount = connectedClients.size;
-    storage.updateRadioState({ listenerCount: connectedClients.size });
-    storage.recordListenerAnalytics(connectedClients.size);
+    await storage.updateRadioState({ listenerCount: connectedClients.size });
+    await storage.recordListenerAnalytics(connectedClients.size);
 
     const tracks = await storage.getAllTracks();
-    const streamConfig = storage.getStreamConfig();
+    const streamConfig = await storage.getStreamConfig();
     ws.send(JSON.stringify({
       type: "initial_state",
       state: currentState,
@@ -749,7 +753,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       count: connectedClients.size,
     });
 
-    ws.on("message", (message, isBinary) => {
+    ws.on("message", async (message, isBinary) => {
       try {
         if (isBinary) {
           connectedClients.forEach((client) => {
@@ -764,7 +768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const data = JSON.parse(messageStr);
         
         if (data.type === "playback_position") {
-          storage.updateRadioState({
+          await storage.updateRadioState({
             playbackPosition: data.position,
             currentTrackId: data.trackId,
           });
@@ -775,7 +779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             text: data.text,
             timestamp: Date.now(),
           };
-          storage.addChatMessage(chatMessage);
+          await storage.addChatMessage(chatMessage);
           broadcastToClients({
             type: "chat_message",
             username: chatMessage.username,
@@ -787,9 +791,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     });
 
-    ws.on("close", () => {
+    ws.on("close", async () => {
       connectedClients.delete(ws);
-      storage.updateRadioState({ listenerCount: connectedClients.size });
+      await storage.updateRadioState({ listenerCount: connectedClients.size });
       
       broadcastToClients({
         type: "listener_count_updated",
@@ -804,16 +808,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (playbackInterval) return;
 
     playbackInterval = setInterval(async () => {
-      const state = storage.getRadioState();
+      const state = await storage.getRadioState();
       const allTracks = await storage.getAllTracks();
       const tracks = allTracks.filter(t => t.uploadStatus === "ready" || !t.uploadStatus);
 
-      storage.recordListenerAnalytics(connectedClients.size);
+      await storage.recordListenerAnalytics(connectedClients.size);
 
       if (tracks.length === 0 || state.isLive) return;
 
       if (state.currentTrackId === null) {
-        storage.updateRadioState({
+        await storage.updateRadioState({
           currentTrackId: tracks[0].id,
           playbackPosition: 0,
         });
@@ -829,7 +833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentTrackIndex = tracks.findIndex(t => t.id === state.currentTrackId);
       if (currentTrackIndex === -1) {
         if (tracks.length > 0) {
-          storage.updateRadioState({
+          await storage.updateRadioState({
             currentTrackId: tracks[0].id,
             playbackPosition: 0,
           });
@@ -849,7 +853,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const nextTrackIndex = (currentTrackIndex + 1) % tracks.length;
         const nextTrack = tracks[nextTrackIndex];
         
-        storage.updateRadioState({
+        await storage.updateRadioState({
           currentTrackId: nextTrack.id,
           playbackPosition: 0,
         });
@@ -860,7 +864,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           position: 0,
         });
       } else {
-        storage.updateRadioState({
+        await storage.updateRadioState({
           playbackPosition: newPosition,
         });
 
