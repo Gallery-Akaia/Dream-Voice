@@ -141,6 +141,8 @@ export default function AdminPlaylist() {
     
     const audioFile = new File([data], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
     console.log(`[Done] Ready to upload: ${(audioFile.size / 1024 / 1024).toFixed(2)} MB`);
+    // Ensure the returned file has the correct MIME type for the browser
+    Object.defineProperty(audioFile, 'type', { value: 'audio/mpeg' });
     return audioFile;
   };
 
@@ -318,7 +320,7 @@ export default function AdminPlaylist() {
       console.log("[Supabase] Step 1: Starting direct upload...");
       console.time("Supabase Direct Upload");
       
-    const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3";
+    const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3" || fileToUpload.name.endsWith(".mp3");
     const actualExt = "mp3";
     const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
     const filePath = `uploads/${fileName}`;
