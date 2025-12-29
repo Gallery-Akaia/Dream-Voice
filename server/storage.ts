@@ -1,5 +1,6 @@
-import { type User, type InsertUser, type AudioTrack, type InsertAudioTrack, type RadioState, type ChatMessage, type ListenerAnalytics, type StreamConfig } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { users, audioTracks, type User, type InsertUser, type AudioTrack, type InsertAudioTrack, type RadioState, type ChatMessage, type ListenerAnalytics, type StreamConfig } from "@shared/schema";
+import { db } from "./db";
+import { eq, asc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -13,30 +14,26 @@ export interface IStorage {
   deleteTrack(id: string): Promise<void>;
   updateTrackOrder(trackId: string, newOrder: number): Promise<void>;
   
-  getRadioState(): RadioState;
-  updateRadioState(state: Partial<RadioState>): void;
+  getRadioState(): Promise<RadioState>;
+  updateRadioState(state: Partial<RadioState>): Promise<void>;
 
-  addChatMessage(message: ChatMessage): void;
-  getChatMessages(limit: number): ChatMessage[];
+  addChatMessage(message: ChatMessage): Promise<void>;
+  getChatMessages(limit: number): Promise<ChatMessage[]>;
   
-  recordListenerAnalytics(count: number): void;
-  getListenerAnalytics(minutesBack: number): ListenerAnalytics[];
+  recordListenerAnalytics(count: number): Promise<void>;
+  getListenerAnalytics(minutesBack: number): Promise<ListenerAnalytics[]>;
   
-  getStreamConfig(): StreamConfig;
-  updateStreamConfig(config: Partial<StreamConfig>): void;
+  getStreamConfig(): Promise<StreamConfig>;
+  updateStreamConfig(config: Partial<StreamConfig>): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private tracks: Map<string, AudioTrack>;
+export class DatabaseStorage implements IStorage {
   private radioState: RadioState;
   private chatMessages: ChatMessage[] = [];
   private listenerAnalytics: ListenerAnalytics[] = [];
   private streamConfig: StreamConfig;
 
   constructor() {
-    this.users = new Map();
-    this.tracks = new Map();
     this.radioState = {
       currentTrackId: null,
       playbackPosition: 0,
@@ -51,87 +48,74 @@ export class MemStorage implements IStorage {
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   async getAllTracks(): Promise<AudioTrack[]> {
-    return Array.from(this.tracks.values()).sort((a, b) => a.order - b.order);
+    return await db.select().from(audioTracks).orderBy(asc(audioTracks.order));
   }
 
   async getTrack(id: string): Promise<AudioTrack | undefined> {
-    return this.tracks.get(id);
+    const [track] = await db.select().from(audioTracks).where(eq(audioTracks.id, id));
+    return track;
   }
 
   async createTrack(insertTrack: InsertAudioTrack): Promise<AudioTrack> {
-    const id = randomUUID();
-    const track: AudioTrack = {
-      id,
-      title: insertTrack.title,
-      artist: insertTrack.artist || null,
-      duration: insertTrack.duration,
-      fileUrl: insertTrack.fileUrl,
-      order: insertTrack.order || 0,
-      uploadStatus: insertTrack.uploadStatus || "ready",
-    };
-    this.tracks.set(id, track);
+    const [track] = await db.insert(audioTracks).values(insertTrack).returning();
     return track;
   }
 
   async updateTrack(id: string, updates: Partial<AudioTrack>): Promise<AudioTrack | undefined> {
-    const track = this.tracks.get(id);
-    if (track) {
-      const updatedTrack = { ...track, ...updates };
-      this.tracks.set(id, updatedTrack);
-      return updatedTrack;
-    }
-    return undefined;
+    const [track] = await db
+      .update(audioTracks)
+      .set(updates)
+      .where(eq(audioTracks.id, id))
+      .returning();
+    return track;
   }
 
   async deleteTrack(id: string): Promise<void> {
-    this.tracks.delete(id);
+    await db.delete(audioTracks).where(eq(audioTracks.id, id));
   }
 
   async updateTrackOrder(trackId: string, newOrder: number): Promise<void> {
-    const track = this.tracks.get(trackId);
-    if (track) {
-      track.order = newOrder;
-      this.tracks.set(trackId, track);
-    }
+    await db
+      .update(audioTracks)
+      .set({ order: newOrder })
+      .where(eq(audioTracks.id, trackId));
   }
 
-  getRadioState(): RadioState {
+  async getRadioState(): Promise<RadioState> {
     return { ...this.radioState };
   }
 
-  updateRadioState(state: Partial<RadioState>): void {
+  async updateRadioState(state: Partial<RadioState>): Promise<void> {
     this.radioState = { ...this.radioState, ...state };
   }
 
-  addChatMessage(message: ChatMessage): void {
+  async addChatMessage(message: ChatMessage): Promise<void> {
     this.chatMessages.push(message);
     if (this.chatMessages.length > 100) {
       this.chatMessages = this.chatMessages.slice(-100);
     }
   }
 
-  getChatMessages(limit: number): ChatMessage[] {
+  async getChatMessages(limit: number): Promise<ChatMessage[]> {
     return this.chatMessages.slice(-limit);
   }
 
-  recordListenerAnalytics(count: number): void {
+  async recordListenerAnalytics(count: number): Promise<void> {
     this.listenerAnalytics.push({
       timestamp: Date.now(),
       listenerCount: count,
@@ -141,18 +125,18 @@ export class MemStorage implements IStorage {
     }
   }
 
-  getListenerAnalytics(minutesBack: number): ListenerAnalytics[] {
+  async getListenerAnalytics(minutesBack: number): Promise<ListenerAnalytics[]> {
     const cutoff = Date.now() - minutesBack * 60 * 1000;
     return this.listenerAnalytics.filter(a => a.timestamp >= cutoff);
   }
 
-  getStreamConfig(): StreamConfig {
+  async getStreamConfig(): Promise<StreamConfig> {
     return { ...this.streamConfig };
   }
 
-  updateStreamConfig(config: Partial<StreamConfig>): void {
+  async updateStreamConfig(config: Partial<StreamConfig>): Promise<void> {
     this.streamConfig = { ...this.streamConfig, ...config };
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
