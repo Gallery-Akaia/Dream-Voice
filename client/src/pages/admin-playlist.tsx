@@ -265,7 +265,6 @@ export default function AdminPlaylist() {
       setIsUploading(true);
       setUploadProgress(5);
 
-      const isVideo = file.type.startsWith('video/');
       let fileToUpload = file;
       let duration = 0;
 
@@ -276,13 +275,11 @@ export default function AdminPlaylist() {
         });
         
         try {
+          // This creates a NEW File object which is an MP3
           fileToUpload = await extractAudioLocally(file);
           // Get duration locally after conversion
           duration = await getAudioDuration(fileToUpload);
-          console.log("[Processing] Successfully extracted audio");
-          
-          // CRITICAL: Ensure we use the converted file for Supabase upload
-          // The previous code had a bug where it might fallback to 'file' if not careful
+          console.log("[Processing] Successfully extracted audio as MP3");
         } catch (ffmpegErr) {
           console.error("FFmpeg extraction failed:", ffmpegErr);
           toast({
@@ -300,13 +297,13 @@ export default function AdminPlaylist() {
 
       setUploadProgress(60);
 
-      // 1. Upload to Supabase Storage with better error handling and progress tracking
+      // 1. Upload to Supabase Storage
       console.log("[Supabase] Step 1: Starting direct upload...");
       console.time("Supabase Direct Upload");
       
-      // Determine correct extension and content type
-      const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3";
-      const actualExt = isActuallyAudio ? "mp3" : fileToUpload.name.split('.').pop() || 'mp3';
+      // CRITICAL: Use the MIME type and extension from fileToUpload (which might be the converted MP3)
+      const isConvertedMp3 = fileToUpload.type === "audio/mpeg";
+      const actualExt = isConvertedMp3 ? "mp3" : fileToUpload.name.split('.').pop() || 'mp3';
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
       const filePath = `uploads/${fileName}`;
 
@@ -315,16 +312,16 @@ export default function AdminPlaylist() {
         .upload(filePath, fileToUpload, {
           cacheControl: '3600',
           upsert: false,
-          contentType: isActuallyAudio ? "audio/mpeg" : fileToUpload.type, 
+          contentType: fileToUpload.type, 
         });
 
       if (uploadError) {
-        console.error("[Supabase Error] Upload failed spectacularly:", uploadError);
+        console.error("[Supabase Error] Upload failed:", uploadError);
         console.timeEnd("Supabase Direct Upload");
         throw uploadError;
       }
       console.timeEnd("Supabase Direct Upload");
-      console.log("[Supabase] Success! File is now stored in the cloud.");
+      console.log("[Supabase] Success! File stored.");
       setUploadProgress(80);
 
       // 2. Get Public URL
@@ -332,10 +329,9 @@ export default function AdminPlaylist() {
       const { data: { publicUrl } } = supabase.storage
         .from('audio-files')
         .getPublicUrl(filePath);
-      console.log("[Supabase] Link generated:", publicUrl);
 
       // 3. Save to Database via API
-      console.log("[Database] Step 3: Registering track in the radio system...");
+      console.log("[Database] Step 3: Registering track...");
       const newTrack = {
         title: file.name.replace(/\.[^/.]+$/, ""),
         artist: "Unknown Artist",
@@ -345,18 +341,7 @@ export default function AdminPlaylist() {
         uploadStatus: "ready"
       };
 
-      try {
-        await apiRequest("POST", "/api/tracks/fast-supabase", newTrack);
-        console.log("[Database] Success! Track is now live on the playlist.");
-        
-        // Final cleanup of the video if we are still holding it
-        if (isVideo && fileToUpload !== file) {
-           console.log("[Cleanup] Video conversion finished and uploaded as MP3");
-        }
-      } catch (dbErr) {
-        console.error("[Database Error] Failed to save track reference:", dbErr);
-        throw dbErr;
-      }
+      await apiRequest("POST", "/api/tracks/fast-supabase", newTrack);
       
       setUploadProgress(100);
       toast({
