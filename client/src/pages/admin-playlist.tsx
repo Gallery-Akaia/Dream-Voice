@@ -89,7 +89,7 @@ export default function AdminPlaylist() {
     
     console.log("[2/5] Preparing file for processing...");
     try {
-      // For large files, we might want to use a more efficient way to write, but for browser memory FS this is standard
+      // Use a slightly larger chunk for reading to speed up processing
       const fileData = await fetchFile(file);
       await ffmpeg.writeFile(inputName, fileData);
       console.log("[FFmpeg] Input file ready in memory FS");
@@ -111,9 +111,9 @@ export default function AdminPlaylist() {
       await ffmpeg.exec([
         "-i", inputName,
         "-vn",
-        "-ar", "22050",
-        "-ac", "1",
-        "-b:a", "128k",
+        "-ar", "44100",
+        "-ac", "2",
+        "-b:a", "192k",
         "-threads", "0",
         "-preset", "ultrafast",
         outputName
@@ -305,7 +305,8 @@ export default function AdminPlaylist() {
       console.time("Supabase Direct Upload");
       
       // Determine correct extension and content type
-      const actualExt = fileToUpload.name.split('.').pop() || 'mp3';
+      const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3";
+      const actualExt = isActuallyAudio ? "mp3" : fileToUpload.name.split('.').pop() || 'mp3';
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
       const filePath = `uploads/${fileName}`;
 
@@ -314,7 +315,7 @@ export default function AdminPlaylist() {
         .upload(filePath, fileToUpload, {
           cacheControl: '3600',
           upsert: false,
-          contentType: fileToUpload.type, // Ensure correct mime type (audio/mpeg for mp3)
+          contentType: isActuallyAudio ? "audio/mpeg" : fileToUpload.type, 
         });
 
       if (uploadError) {

@@ -820,7 +820,7 @@ export default function ListenerPage() {
         messages={chatMessages}
         username={username}
       />
-      <audio ref={audioRef} />
+      <audio ref={audioRef} crossOrigin="anonymous" />
       <audio ref={liveStreamRef} data-testid="audio-live-stream" />
     </div>
   );
