@@ -317,7 +317,7 @@ export default function AdminPlaylist() {
       console.time("Supabase Direct Upload");
       
     const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3";
-    const actualExt = isActuallyAudio ? "mp3" : (fileToUpload.type === "audio/wav" ? "wav" : (fileToUpload.type === "audio/ogg" ? "ogg" : "mp3"));
+    const actualExt = "mp3"; // Force mp3 extension for conversion results
     const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
     const filePath = `uploads/${fileName}`;
 
@@ -326,7 +326,7 @@ export default function AdminPlaylist() {
       .upload(filePath, fileToUpload, {
         cacheControl: '3600',
         upsert: false,
-        contentType: isActuallyAudio ? "audio/mpeg" : (fileToUpload.type || "audio/mpeg"), 
+        contentType: "audio/mpeg", // Force audio/mpeg for MP3 files
       });
 
       if (uploadError) {
