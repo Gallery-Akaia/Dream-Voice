@@ -102,15 +102,17 @@ export default function AdminPlaylist() {
 
     console.log("[3/5] Starting high-speed conversion (this is the heavy lifting)...");
     try {
-      // Force MP3 codec and container format
+      // Force high-compatibility MP3 output with explicit stream mapping
       await ffmpeg.exec([
         "-i", inputName,
         "-vn",
-        "-c:a", "libmp3lame",
+        "-acodec", "libmp3lame",
         "-ar", "44100",
         "-ac", "2",
         "-b:a", "192k",
         "-f", "mp3",
+        "-map_metadata", "0",
+        "-id3v2_version", "3",
         "-y",
         outputName
       ]);
@@ -319,12 +321,12 @@ export default function AdminPlaylist() {
       console.log("[Supabase] Step 1: Starting direct upload...");
       console.time("Supabase Direct Upload");
       
-    const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3" || fileToUpload.name.toLowerCase().endsWith(".mp3");
+    const isActuallyAudio = fileToUpload.type.startsWith("audio/") || fileToUpload.name.toLowerCase().endsWith(".mp3");
     const actualExt = "mp3";
     const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
     const filePath = `uploads/${fileName}`;
 
-    console.log(`[Supabase] Final Upload: ${fileName} (${fileToUpload.size} bytes) - Type: audio/mpeg`);
+    console.log(`[Supabase] Final Upload: ${fileName} (${fileToUpload.size} bytes) - MIME: audio/mpeg`);
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('audio-files')
