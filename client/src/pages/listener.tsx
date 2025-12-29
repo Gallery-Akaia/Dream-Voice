@@ -414,8 +414,9 @@ export default function ListenerPage() {
         const clientPosition = audio.currentTime;
         const drift = Math.abs(serverPosition - clientPosition);
 
-        // Even more relaxed sync: 3s drift threshold to prevent "muting" issues during playback
-        if (drift > 3.0) {
+        // Relaxed sync: 5s drift threshold to prevent "muting" issues during playback
+        // This prevents the player from seeking too aggressively which causes buffering/muting
+        if (drift > 5.0) {
           console.log("[Sync] Large drift detected:", drift, "Syncing to:", serverPosition);
           audio.currentTime = serverPosition;
         }
