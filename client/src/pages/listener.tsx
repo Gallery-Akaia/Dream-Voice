@@ -151,6 +151,7 @@ export default function ListenerPage() {
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.preload = "auto";
+      audioRef.current.crossOrigin = "anonymous";
     }
 
     const audio = audioRef.current;

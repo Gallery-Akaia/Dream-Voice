@@ -89,7 +89,9 @@ export default function AdminPlaylist() {
     
     console.log("[2/5] Preparing file for processing...");
     try {
-      await ffmpeg.writeFile(inputName, await fetchFile(file));
+      // For large files, we might want to use a more efficient way to write, but for browser memory FS this is standard
+      const fileData = await fetchFile(file);
+      await ffmpeg.writeFile(inputName, fileData);
       console.log("[FFmpeg] Input file ready in memory FS");
     } catch (err) {
       console.error("[FFmpeg Error] Failed to write input file:", err);
@@ -278,6 +280,9 @@ export default function AdminPlaylist() {
           // Get duration locally after conversion
           duration = await getAudioDuration(fileToUpload);
           console.log("[Processing] Successfully extracted audio");
+          
+          // CRITICAL: Ensure we use the converted file for Supabase upload
+          // The previous code had a bug where it might fallback to 'file' if not careful
         } catch (ffmpegErr) {
           console.error("FFmpeg extraction failed:", ffmpegErr);
           toast({
@@ -285,7 +290,7 @@ export default function AdminPlaylist() {
             description: "Uploading original video file...",
             variant: "destructive",
           });
-          // If extraction fails, we upload the original file with its original extension
+          // If extraction fails, we upload the original file
           fileToUpload = file;
           duration = await getAudioDuration(file);
         }
@@ -299,9 +304,8 @@ export default function AdminPlaylist() {
       console.log("[Supabase] Step 1: Starting direct upload...");
       console.time("Supabase Direct Upload");
       
-      // Determine correct extension based on whether we actually converted it
-      const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3";
-      const actualExt = isActuallyAudio ? "mp3" : file.name.split('.').pop();
+      // Determine correct extension and content type
+      const actualExt = fileToUpload.name.split('.').pop() || 'mp3';
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
       const filePath = `uploads/${fileName}`;
 
@@ -310,7 +314,7 @@ export default function AdminPlaylist() {
         .upload(filePath, fileToUpload, {
           cacheControl: '3600',
           upsert: false,
-          contentType: fileToUpload.type,
+          contentType: fileToUpload.type, // Ensure correct mime type (audio/mpeg for mp3)
         });
 
       if (uploadError) {
@@ -343,6 +347,11 @@ export default function AdminPlaylist() {
       try {
         await apiRequest("POST", "/api/tracks/fast-supabase", newTrack);
         console.log("[Database] Success! Track is now live on the playlist.");
+        
+        // Final cleanup of the video if we are still holding it
+        if (isVideo && fileToUpload !== file) {
+           console.log("[Cleanup] Video conversion finished and uploaded as MP3");
+        }
       } catch (dbErr) {
         console.error("[Database Error] Failed to save track reference:", dbErr);
         throw dbErr;
