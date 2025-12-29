@@ -111,8 +111,9 @@ export default function AdminPlaylist() {
         "-vn",
         "-ar", "22050",
         "-ac", "1",
-        "-b:a", "64k",
+        "-b:a", "128k",
         "-threads", "0",
+        "-preset", "ultrafast",
         outputName
       ]);
       console.log("[FFmpeg] Conversion command finished");
