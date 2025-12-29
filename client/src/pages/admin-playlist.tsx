@@ -57,16 +57,15 @@ export default function AdminPlaylist() {
     console.log("[FFmpeg] Loading core from:", baseURL);
     
     try {
-      // Use single-threaded version by default to avoid SharedArrayBuffer issues in Replit
+      // Force single-threaded mode to avoid SharedArrayBuffer issues in Replit environment
       const loadOptions: any = {
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
       };
 
-      console.log("[FFmpeg] Forcing single-threaded mode for stability");
+      console.log("[FFmpeg] Loading in single-threaded mode for maximum compatibility");
       await ffmpeg.load(loadOptions);
       ffmpegRef.current = ffmpeg;
-      console.log("[FFmpeg] Core loaded successfully");
       return ffmpeg;
     } catch (err) {
       console.error("[FFmpeg] Core load failed. Error detail:", err);
@@ -106,10 +105,10 @@ export default function AdminPlaylist() {
       await ffmpeg.exec([
         "-i", inputName,
         "-vn",
+        "-acodec", "libmp3lame",
         "-ar", "44100",
         "-ac", "2",
         "-b:a", "192k",
-        "-threads", "0",
         "-preset", "ultrafast",
         outputName
       ]);
@@ -316,19 +315,18 @@ export default function AdminPlaylist() {
       console.log("[Supabase] Step 1: Starting direct upload...");
       console.time("Supabase Direct Upload");
       
-      // CRITICAL: Use the MIME type and extension from fileToUpload (which might be the converted MP3)
-      const isConvertedMp3 = fileToUpload.type === "audio/mpeg";
-      const actualExt = isConvertedMp3 ? "mp3" : fileToUpload.name.split('.').pop() || 'mp3';
-      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
-      const filePath = `uploads/${fileName}`;
+    const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3";
+    const actualExt = isActuallyAudio ? "mp3" : (fileToUpload.type === "audio/wav" ? "wav" : (fileToUpload.type === "audio/ogg" ? "ogg" : "mp3"));
+    const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
+    const filePath = `uploads/${fileName}`;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('audio-files')
-        .upload(filePath, fileToUpload, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: fileToUpload.type, 
-        });
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('audio-files')
+      .upload(filePath, fileToUpload, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: isActuallyAudio ? "audio/mpeg" : (fileToUpload.type || "audio/mpeg"), 
+      });
 
       if (uploadError) {
         console.error("[Supabase Error] Upload failed:", uploadError);
