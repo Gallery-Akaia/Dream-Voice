@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Trash2, Music, GripVertical, Loader2, CheckCircle2, AlertCircle, Play, Pause, Settings2, FileAudio, Plus } from "lucide-react";
+import { Upload, Trash2, Music, GripVertical, Loader2, CheckCircle2, AlertCircle, Play, Pause, Settings2, FileAudio, Plus, Edit2 } from "lucide-react";
 
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
@@ -203,6 +203,26 @@ export default function AdminPlaylist() {
       toast({
         title: "Delete failed",
         description: "Failed to delete track",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateTitleMutation = useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      await apiRequest("PATCH", `/api/tracks/${id}`, { title });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tracks"] });
+      toast({
+        title: "Track updated",
+        description: "Track title has been changed",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Update failed",
+        description: "Failed to update track title",
         variant: "destructive",
       });
     },
@@ -457,6 +477,20 @@ export default function AdminPlaylist() {
                             data-testid={`button-play-${track.id}`}
                           >
                             <Play className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              const newTitle = prompt("Enter new title:", track.title);
+                              if (newTitle && newTitle !== track.title) {
+                                updateTitleMutation.mutate({ id: track.id, title: newTitle });
+                              }
+                            }}
+                            disabled={updateTitleMutation.isPending}
+                            data-testid={`button-edit-${track.id}`}
+                          >
+                            <Edit2 className="h-4 w-4" />
                           </Button>
                           <Button
                             size="icon"

@@ -561,6 +561,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/tracks/:id", async (req, res) => {
+    try {
+      const { title } = req.body;
+      if (!title) {
+        return res.status(400).json({ error: "Title is required" });
+      }
+
+      const track = await storage.updateTrack(req.params.id, { title });
+      if (!track) {
+        return res.status(404).json({ error: "Track not found" });
+      }
+
+      broadcastToClients({
+        type: "playlist_updated",
+        tracks: await storage.getAllTracks(),
+      });
+
+      res.json(track);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update track" });
+    }
+  });
+
   app.delete("/api/tracks/:id", async (req, res) => {
     try {
       const track = await storage.getTrack(req.params.id);
