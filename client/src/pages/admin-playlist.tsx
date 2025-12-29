@@ -44,17 +44,27 @@ export default function AdminPlaylist() {
   const loadFFmpeg = async () => {
     if (ffmpegRef.current) return ffmpegRef.current;
     
+    // Check if SharedArrayBuffer is available (required for multi-threaded FFmpeg)
+    const isMultiThreaded = typeof SharedArrayBuffer !== 'undefined';
+    console.log(`[FFmpeg] Multi-threading support: ${isMultiThreaded}`);
+
     const ffmpeg = new FFmpeg();
     const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
     
     console.log("[FFmpeg] Loading core...");
     
     try {
-      await ffmpeg.load({
+      const loadOptions: any = {
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-        workerURL: await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, "text/javascript"),
-      });
+      };
+
+      // Only add workerURL if SharedArrayBuffer is available
+      if (isMultiThreaded) {
+        loadOptions.workerURL = await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, "text/javascript");
+      }
+
+      await ffmpeg.load(loadOptions);
       ffmpegRef.current = ffmpeg;
       console.log("[FFmpeg] Core loaded successfully");
       return ffmpeg;
@@ -258,13 +268,15 @@ export default function AdminPlaylist() {
           fileToUpload = await extractAudioLocally(file);
           // Get duration locally after conversion
           duration = await getAudioDuration(fileToUpload);
+          console.log("[Processing] Successfully extracted audio");
         } catch (ffmpegErr) {
           console.error("FFmpeg extraction failed:", ffmpegErr);
           toast({
             title: "Processing Failed",
-            description: "Falling back to direct video upload...",
+            description: "Uploading original video file...",
             variant: "destructive",
           });
+          // If extraction fails, we upload the original file with its original extension
           fileToUpload = file;
           duration = await getAudioDuration(file);
         }
@@ -275,10 +287,13 @@ export default function AdminPlaylist() {
       setUploadProgress(60);
 
       // 1. Upload to Supabase Storage with better error handling and progress tracking
-      console.log("[Supabase] Step 1: Starting direct upload to 'audio-files' bucket...");
+      console.log("[Supabase] Step 1: Starting direct upload...");
       console.time("Supabase Direct Upload");
-      const fileExt = isVideo ? 'mp3' : file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      
+      // Determine correct extension based on whether we actually converted it
+      const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3";
+      const actualExt = isActuallyAudio ? "mp3" : file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
       const filePath = `uploads/${fileName}`;
 
       const { data: uploadData, error: uploadError } = await supabase.storage

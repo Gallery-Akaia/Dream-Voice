@@ -46,12 +46,10 @@ export default function ListenerPage() {
 
   const resolveTrackUrl = useCallback((url: string): string => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
-      // Force public Supabase URL if it's pointing to the storage
-      if (url.includes(".supabase.co/storage/v1/object/public/")) {
-        return url;
-      }
+      // Ensure we don't double-append origin
       return url;
     }
+    // For local dev / relative paths
     return new URL(url, window.location.origin).href;
   }, []);
 
@@ -386,6 +384,8 @@ export default function ListenerPage() {
 
     const audio = audioRef.current;
     const resolvedUrl = resolveTrackUrl(currentTrack.fileUrl);
+
+    console.log("[Listener] Playing track:", currentTrack.title, "at URL:", resolvedUrl);
 
     if (currentTrackUrlRef.current !== resolvedUrl) {
       currentTrackUrlRef.current = resolvedUrl;
