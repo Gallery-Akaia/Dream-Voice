@@ -237,7 +237,8 @@ export default function AdminPlaylist() {
 
       setUploadProgress(60);
 
-      // 1. Upload to Supabase Storage
+      // 1. Upload to Supabase Storage with better error handling and progress tracking
+      console.time("SupabaseUpload");
       const fileExt = isVideo ? 'mp3' : file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
       const filePath = `uploads/${fileName}`;
@@ -247,9 +248,14 @@ export default function AdminPlaylist() {
         .upload(filePath, fileToUpload, {
           cacheControl: '3600',
           upsert: false,
+          contentType: fileToUpload.type,
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.timeEnd("SupabaseUpload");
+        throw uploadError;
+      }
+      console.timeEnd("SupabaseUpload");
       setUploadProgress(60);
 
       // 2. Get Public URL

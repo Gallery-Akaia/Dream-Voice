@@ -11,4 +11,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const finalUrl = supabaseUrl || (typeof process !== 'undefined' ? process.env.SUPABASE_URL : '') || '';
 const finalKey = supabaseAnonKey || (typeof process !== 'undefined' ? process.env.SUPABASE_ANON_KEY : '') || '';
 
-export const supabase = createClient(finalUrl, finalKey);
+export const supabase = createClient(finalUrl, finalKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+  global: {
+    headers: { 'x-application-name': 'radio-dream-voice' },
+  },
+});
