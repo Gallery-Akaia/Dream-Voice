@@ -181,8 +181,14 @@ export default function AdminPlaylist() {
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Prevent multiple triggers
+    if (isUploading) return;
+    
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Clear input immediately to prevent double-upload of same file
+    if (fileInputRef.current) fileInputRef.current.value = "";
 
     // Basic validation
     const isAudio = file.type.startsWith('audio/');
@@ -211,10 +217,20 @@ export default function AdminPlaylist() {
           description: "Extracting audio locally for instant upload...",
         });
         
-        fileToUpload = await extractAudioLocally(file);
-        
-        // Get duration locally after conversion
-        duration = await getAudioDuration(fileToUpload);
+        try {
+          fileToUpload = await extractAudioLocally(file);
+          // Get duration locally after conversion
+          duration = await getAudioDuration(fileToUpload);
+        } catch (ffmpegErr) {
+          console.error("FFmpeg extraction failed:", ffmpegErr);
+          toast({
+            title: "Processing Failed",
+            description: "Falling back to direct video upload...",
+            variant: "destructive",
+          });
+          fileToUpload = file;
+          duration = await getAudioDuration(file);
+        }
       } else {
         duration = await getAudioDuration(file);
       }
@@ -251,7 +267,7 @@ export default function AdminPlaylist() {
         uploadStatus: "ready"
       };
 
-      console.log("Saving track to DB:", newTrack);
+      console.log("Saving track to DB with duration:", newTrack.duration);
       await apiRequest("POST", "/api/tracks/fast-supabase", newTrack);
       
       setUploadProgress(100);
