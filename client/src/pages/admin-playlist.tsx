@@ -49,13 +49,19 @@ export default function AdminPlaylist() {
     
     console.log("[FFmpeg] Loading core...");
     
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-    });
-    ffmpegRef.current = ffmpeg;
-    console.log("[FFmpeg] Core loaded successfully");
-    return ffmpeg;
+    try {
+      await ffmpeg.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+        workerURL: await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, "text/javascript"),
+      });
+      ffmpegRef.current = ffmpeg;
+      console.log("[FFmpeg] Core loaded successfully");
+      return ffmpeg;
+    } catch (err) {
+      console.error("[FFmpeg] Core load failed:", err);
+      throw err;
+    }
   };
 
   const extractAudioLocally = async (file: File) => {
@@ -269,8 +275,8 @@ export default function AdminPlaylist() {
       setUploadProgress(60);
 
       // 1. Upload to Supabase Storage with better error handling and progress tracking
-      console.log("[Supabase] Starting upload to storage...");
-      console.time("SupabaseUpload");
+      console.log("[Supabase] Step 1: Starting direct upload to 'audio-files' bucket...");
+      console.time("Supabase Direct Upload");
       const fileExt = isVideo ? 'mp3' : file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
       const filePath = `uploads/${fileName}`;
@@ -284,22 +290,23 @@ export default function AdminPlaylist() {
         });
 
       if (uploadError) {
-        console.error("[Supabase] Upload failed:", uploadError);
-        console.timeEnd("SupabaseUpload");
+        console.error("[Supabase Error] Upload failed spectacularly:", uploadError);
+        console.timeEnd("Supabase Direct Upload");
         throw uploadError;
       }
-      console.timeEnd("SupabaseUpload");
-      console.log("[Supabase] Upload successful");
-      setUploadProgress(60);
+      console.timeEnd("Supabase Direct Upload");
+      console.log("[Supabase] Success! File is now stored in the cloud.");
+      setUploadProgress(80);
 
       // 2. Get Public URL
-      console.log("[Supabase] Fetching public URL...");
+      console.log("[Supabase] Step 2: Generating public access link...");
       const { data: { publicUrl } } = supabase.storage
         .from('audio-files')
         .getPublicUrl(filePath);
-      console.log("[Supabase] Public URL retrieved:", publicUrl);
+      console.log("[Supabase] Link generated:", publicUrl);
 
       // 3. Save to Database via API
+      console.log("[Database] Step 3: Registering track in the radio system...");
       const newTrack = {
         title: file.name.replace(/\.[^/.]+$/, ""),
         artist: "Unknown Artist",
@@ -309,9 +316,13 @@ export default function AdminPlaylist() {
         uploadStatus: "ready"
       };
 
-      console.log("[Database] Saving track info:", newTrack);
-      await apiRequest("POST", "/api/tracks/fast-supabase", newTrack);
-      console.log("[Database] Save successful");
+      try {
+        await apiRequest("POST", "/api/tracks/fast-supabase", newTrack);
+        console.log("[Database] Success! Track is now live on the playlist.");
+      } catch (dbErr) {
+        console.error("[Database Error] Failed to save track reference:", dbErr);
+        throw dbErr;
+      }
       
       setUploadProgress(100);
       toast({
