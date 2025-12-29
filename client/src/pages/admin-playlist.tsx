@@ -65,27 +65,29 @@ export default function AdminPlaylist() {
     
     await ffmpeg.writeFile(inputName, await fetchFile(file));
     
-    // Use the fastest possible settings for audio extraction
-    // -vn: no video
-    // -acodec libmp3lame: mp3 codec
-    // -abr 1: average bit rate (faster than constant)
-    // -b:a 128k: decent quality but small
-    // -threads 0: use all available web workers
+    // Most optimized settings for speed: 
+    // -threads 0: use all workers
+    // -q:a 9: lowest quality (but fastest) for test
+    // -preset ultrafast (if applicable to audio codecs)
     await ffmpeg.exec([
       "-i", inputName,
       "-vn",
-      "-ar", "44100",
-      "-ac", "2",
-      "-b:a", "128k",
+      "-ar", "22050", // Lower sample rate for faster processing
+      "-ac", "1",     // Mono instead of stereo for speed
+      "-b:a", "64k",  // Lower bitrate for faster processing
       "-threads", "0",
       outputName
     ]);
     
     const data = await ffmpeg.readFile(outputName);
     
-    // Clean up FFmpeg virtual filesystem
-    await ffmpeg.deleteFile(inputName);
-    await ffmpeg.deleteFile(outputName);
+    // Clean up virtual files
+    try {
+      await ffmpeg.deleteFile(inputName);
+      await ffmpeg.deleteFile(outputName);
+    } catch (e) {
+      console.warn("Clean up failed", e);
+    }
     
     return new File([data], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
   };
