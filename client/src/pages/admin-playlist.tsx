@@ -102,15 +102,16 @@ export default function AdminPlaylist() {
 
     console.log("[3/5] Starting high-speed conversion (this is the heavy lifting)...");
     try {
-      // Forcing standard mp3 encoding with specific parameters that are widely supported
+      // Force MP3 container and codec with -f mp3
       await ffmpeg.exec([
         "-i", inputName,
-        "-vn",                   // Disable video
-        "-acodec", "libmp3lame", // Standard MP3 codec
-        "-ar", "44100",          // 44.1kHz sample rate
-        "-ac", "2",              // Stereo
-        "-qscale:a", "4",        // Good quality VBR (approx 165 kbps)
-        "-y",                    // Overwrite output
+        "-vn",
+        "-c:a", "libmp3lame",
+        "-ar", "44100",
+        "-ac", "2",
+        "-b:a", "192k",
+        "-f", "mp3",
+        "-y",
         outputName
       ]);
       console.log("[FFmpeg] Conversion command finished");
@@ -317,16 +318,18 @@ export default function AdminPlaylist() {
       console.time("Supabase Direct Upload");
       
     const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3";
-    const actualExt = "mp3"; // Force mp3 extension for conversion results
+    const actualExt = "mp3";
     const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
     const filePath = `uploads/${fileName}`;
+
+    console.log(`[Supabase] Uploading as MP3: ${fileName} (${fileToUpload.size} bytes)`);
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('audio-files')
       .upload(filePath, fileToUpload, {
         cacheControl: '3600',
         upsert: false,
-        contentType: "audio/mpeg", // Force audio/mpeg for MP3 files
+        contentType: "audio/mpeg", 
       });
 
       if (uploadError) {
