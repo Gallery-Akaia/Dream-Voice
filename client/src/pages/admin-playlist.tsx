@@ -102,7 +102,7 @@ export default function AdminPlaylist() {
 
     console.log("[3/5] Starting high-speed conversion (this is the heavy lifting)...");
     try {
-      // Force MP3 container and codec with -f mp3
+      // Force MP3 container and codec with strict output mapping
       await ffmpeg.exec([
         "-i", inputName,
         "-vn",
@@ -111,6 +111,7 @@ export default function AdminPlaylist() {
         "-ac", "2",
         "-b:a", "192k",
         "-f", "mp3",
+        "-map", "0:a:0",
         "-y",
         outputName
       ]);
@@ -322,7 +323,7 @@ export default function AdminPlaylist() {
     const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
     const filePath = `uploads/${fileName}`;
 
-    console.log(`[Supabase] Uploading as MP3: ${fileName} (${fileToUpload.size} bytes)`);
+    console.log(`[Supabase] Final Upload: ${fileName} (${fileToUpload.size} bytes) - Type: audio/mpeg`);
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('audio-files')
