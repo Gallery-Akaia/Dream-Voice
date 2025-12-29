@@ -102,16 +102,16 @@ export default function AdminPlaylist() {
 
     console.log("[3/5] Starting high-speed conversion (this is the heavy lifting)...");
     try {
-      // Force MP3 container and codec with strict output mapping
+      // Use standard ffmpeg parameters for audio extraction to MP3
+      // We use -vn to strip video and -acodec libmp3lame for the audio stream
       await ffmpeg.exec([
         "-i", inputName,
         "-vn",
-        "-c:a", "libmp3lame",
+        "-acodec", "libmp3lame",
         "-ar", "44100",
         "-ac", "2",
         "-b:a", "192k",
         "-f", "mp3",
-        "-map", "0:a:0",
         "-y",
         outputName
       ]);
@@ -320,7 +320,7 @@ export default function AdminPlaylist() {
       console.log("[Supabase] Step 1: Starting direct upload...");
       console.time("Supabase Direct Upload");
       
-    const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3" || fileToUpload.name.endsWith(".mp3");
+    const isActuallyAudio = fileToUpload.type === "audio/mpeg" || fileToUpload.type === "audio/mp3" || fileToUpload.name.toLowerCase().endsWith(".mp3");
     const actualExt = "mp3";
     const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
     const filePath = `uploads/${fileName}`;
