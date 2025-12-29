@@ -57,18 +57,13 @@ export default function AdminPlaylist() {
     console.log("[FFmpeg] Loading core from:", baseURL);
     
     try {
+      // Use single-threaded version by default to avoid SharedArrayBuffer issues in Replit
       const loadOptions: any = {
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
       };
 
-      if (isMultiThreaded) {
-        console.log("[FFmpeg] Enabling worker for multi-threading");
-        loadOptions.workerURL = await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, "text/javascript");
-      } else {
-        console.log("[FFmpeg] Falling back to single-threaded mode (no SharedArrayBuffer)");
-      }
-
+      console.log("[FFmpeg] Forcing single-threaded mode for stability");
       await ffmpeg.load(loadOptions);
       ffmpegRef.current = ffmpeg;
       console.log("[FFmpeg] Core loaded successfully");
