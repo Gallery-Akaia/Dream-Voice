@@ -59,44 +59,65 @@ export default function AdminPlaylist() {
   };
 
   const extractAudioLocally = async (file: File) => {
-    console.log(`[Processing] Starting extraction for: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`[1/5] Initializing audio extraction for: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     const ffmpeg = await loadFFmpeg();
     const inputName = "input_" + Date.now() + file.name.substring(file.name.lastIndexOf("."));
     const outputName = "output_" + Date.now() + ".mp3";
     
-    console.log("[FFmpeg] Writing input file to virtual FS...");
-    await ffmpeg.writeFile(inputName, await fetchFile(file));
+    console.log("[2/5] Preparing file for processing...");
+    try {
+      await ffmpeg.writeFile(inputName, await fetchFile(file));
+      console.log("[FFmpeg] Input file ready in memory FS");
+    } catch (err) {
+      console.error("[FFmpeg Error] Failed to write input file:", err);
+      throw err;
+    }
     
     ffmpeg.on("log", ({ message }) => {
       if (message.includes("size=") || message.includes("time=")) {
-        console.log(`[FFmpeg Log] ${message}`);
+        console.log(`[3/5][FFmpeg] Processing: ${message}`);
+      } else if (message.toLowerCase().includes("error")) {
+        console.error(`[FFmpeg Error] ${message}`);
       }
     });
 
-    console.log("[FFmpeg] Executing conversion...");
-    await ffmpeg.exec([
-      "-i", inputName,
-      "-vn",
-      "-ar", "22050",
-      "-ac", "1",
-      "-b:a", "64k",
-      "-threads", "0",
-      outputName
-    ]);
+    console.log("[3/5] Starting high-speed conversion (this is the heavy lifting)...");
+    try {
+      await ffmpeg.exec([
+        "-i", inputName,
+        "-vn",
+        "-ar", "22050",
+        "-ac", "1",
+        "-b:a", "64k",
+        "-threads", "0",
+        outputName
+      ]);
+      console.log("[FFmpeg] Conversion command finished");
+    } catch (err) {
+      console.error("[FFmpeg Error] Conversion crashed:", err);
+      throw err;
+    }
     
-    console.log("[FFmpeg] Reading output file...");
-    const data = await ffmpeg.readFile(outputName);
+    console.log("[4/5] Finalizing extracted audio data...");
+    let data;
+    try {
+      data = await ffmpeg.readFile(outputName);
+      console.log(`[FFmpeg] Read result: ${(data.length / 1024 / 1024).toFixed(2)} MB`);
+    } catch (err) {
+      console.error("[FFmpeg Error] Could not read output file:", err);
+      throw err;
+    }
     
-    console.log("[Processing] Extraction complete. Cleaning up virtual FS...");
+    console.log("[5/5] Cleanup and preparation for upload...");
     try {
       await ffmpeg.deleteFile(inputName);
       await ffmpeg.deleteFile(outputName);
     } catch (e) {
-      console.warn("[Processing] Cleanup warning:", e);
+      console.warn("[Processing] Cleanup warning (non-fatal):", e);
     }
     
     const audioFile = new File([data], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
-    console.log(`[Processing] Final audio size: ${(audioFile.size / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`[Done] Ready to upload: ${(audioFile.size / 1024 / 1024).toFixed(2)} MB`);
     return audioFile;
   };
 
