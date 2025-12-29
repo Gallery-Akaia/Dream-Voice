@@ -46,12 +46,48 @@ export default function AdminPlaylist() {
     
     const ffmpeg = new FFmpeg();
     const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
+    
+    // Log loading state for debugging
+    console.log("Loading FFmpeg.wasm core...");
+    
     await ffmpeg.load({
       coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
       wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
     });
     ffmpegRef.current = ffmpeg;
     return ffmpeg;
+  };
+
+  const extractAudioLocally = async (file: File) => {
+    const ffmpeg = await loadFFmpeg();
+    const inputName = "input_" + Date.now() + file.name.substring(file.name.lastIndexOf("."));
+    const outputName = "output_" + Date.now() + ".mp3";
+    
+    await ffmpeg.writeFile(inputName, await fetchFile(file));
+    
+    // Use the fastest possible settings for audio extraction
+    // -vn: no video
+    // -acodec libmp3lame: mp3 codec
+    // -abr 1: average bit rate (faster than constant)
+    // -b:a 128k: decent quality but small
+    // -threads 0: use all available web workers
+    await ffmpeg.exec([
+      "-i", inputName,
+      "-vn",
+      "-ar", "44100",
+      "-ac", "2",
+      "-b:a", "128k",
+      "-threads", "0",
+      outputName
+    ]);
+    
+    const data = await ffmpeg.readFile(outputName);
+    
+    // Clean up FFmpeg virtual filesystem
+    await ffmpeg.deleteFile(inputName);
+    await ffmpeg.deleteFile(outputName);
+    
+    return new File([data], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
   };
 
   const { data: tracks = [], isLoading } = useQuery<AudioTrack[]>({
@@ -172,23 +208,10 @@ export default function AdminPlaylist() {
       if (isVideo) {
         toast({
           title: "Processing Video",
-          description: "Extracting audio locally for faster upload...",
+          description: "Extracting audio locally for instant upload...",
         });
         
-        const ffmpeg = await loadFFmpeg();
-        const inputName = "input" + file.name.substring(file.name.lastIndexOf("."));
-        const outputName = "output.mp3";
-        
-        await ffmpeg.writeFile(inputName, await fetchFile(file));
-        
-        ffmpeg.on("progress", ({ progress }) => {
-          setUploadProgress(Math.round(progress * 50));
-        });
-
-        await ffmpeg.exec(["-i", inputName, "-vn", "-ar", "44100", "-ac", "2", "-b:a", "128k", outputName]);
-        
-        const data = await ffmpeg.readFile(outputName);
-        fileToUpload = new File([data], file.name.replace(/\.[^/.]+$/, ".mp3"), { type: "audio/mpeg" });
+        fileToUpload = await extractAudioLocally(file);
         
         // Get duration locally after conversion
         duration = await getAudioDuration(fileToUpload);
