@@ -102,12 +102,11 @@ export default function AdminPlaylist() {
 
     console.log("[3/5] Starting high-speed conversion (this is the heavy lifting)...");
     try {
-      // Use standard ffmpeg parameters for audio extraction to MP3
-      // We use -vn to strip video and -acodec libmp3lame for the audio stream
+      // Force MP3 codec and container format
       await ffmpeg.exec([
         "-i", inputName,
         "-vn",
-        "-acodec", "libmp3lame",
+        "-c:a", "libmp3lame",
         "-ar", "44100",
         "-ac", "2",
         "-b:a", "192k",
