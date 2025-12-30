@@ -108,11 +108,13 @@ export default function AdminPlaylist() {
         "-i", inputName,
         "-vn",                // No video
         "-acodec", "libmp3lame",
-        "-q:a", "2",          // High quality VBR
+        "-b:a", "128k",       // Fixed bitrate for stability
+        "-ar", "44100",       // Standard sample rate
+        "-ac", "2",           // Stereo
         "-map", "a:0",        // Map the first audio stream explicitly
         "-id3v2_version", "3", // Compatibility
         "-write_id3v1", "1",
-        "-f", "mp3",          // Explicit format
+        "-f", "mp3",          // Force MP3 container
         "-y",
         outputName
       ]);

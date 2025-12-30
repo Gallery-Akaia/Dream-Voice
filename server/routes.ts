@@ -187,7 +187,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         try {
           await fs.writeFile(tempPath, fileBuffer);
-          execSync(`ffmpeg -i "${tempPath}" -q:a 5 -map a "${outputPath}" -y -loglevel quiet`);
+          // Enhanced FFmpeg command for server-side extraction
+          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -y "${outputPath}" -loglevel error`);
           fileBuffer = await fs.readFile(outputPath);
           ext = ".mp3";
           await fs.unlink(tempPath).catch(() => {});
