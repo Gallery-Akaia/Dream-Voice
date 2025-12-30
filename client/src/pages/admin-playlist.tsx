@@ -102,17 +102,17 @@ export default function AdminPlaylist() {
 
     console.log("[3/5] Starting high-speed conversion (this is the heavy lifting)...");
     try {
-      // Use standard ffmpeg parameters for audio extraction to MP3
-      // We use -vn to strip video and -c:a libmp3lame for the audio stream
-      // Added -q:a 2 for high quality and explicitly set -f mp3
+      // Force standard MP3 muxing with explicit audio stream mapping
+      // This is the most robust way to ensure the output is playable everywhere
       await ffmpeg.exec([
         "-i", inputName,
-        "-vn",
-        "-c:a", "libmp3lame",
-        "-q:a", "2",
-        "-ar", "44100",
-        "-ac", "2",
-        "-f", "mp3",
+        "-vn",                // No video
+        "-acodec", "libmp3lame",
+        "-q:a", "2",          // High quality VBR
+        "-map", "a:0",        // Map the first audio stream explicitly
+        "-id3v2_version", "3", // Compatibility
+        "-write_id3v1", "1",
+        "-f", "mp3",          // Explicit format
         "-y",
         outputName
       ]);
