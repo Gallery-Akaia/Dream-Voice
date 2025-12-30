@@ -102,23 +102,18 @@ export default function AdminPlaylist() {
 
     console.log("[3/5] Starting high-speed conversion (this is the heavy lifting)...");
     try {
-      // Force MP3 container and codec with maximum compatibility settings
-      // Using -acodec libmp3lame and -f mp3 for maximum compatibility
-      // Added -id3v2_version 3 and -write_id3v1 1 for header compatibility
-      // Added -map 0:a:0 to explicitly select the first audio stream
+      // Use standard ffmpeg parameters for audio extraction to MP3
+      // We use -vn to strip video and -c:a libmp3lame for the audio stream
+      // Added -q:a 2 for high quality and explicitly set -f mp3
       await ffmpeg.exec([
         "-i", inputName,
-        "-vn",                   // Disable video
-        "-acodec", "libmp3lame", // Standard MP3 codec
-        "-ar", "44100",          // 44.1kHz sample rate
-        "-ac", "2",              // Stereo
-        "-b:a", "192k",          // Standard high-quality bitrate
-        "-f", "mp3",             // Force MP3 container
-        "-map", "0:a:0",         // Select first audio stream
-        "-write_id3v1", "1",     // Write ID3v1 tags
-        "-id3v2_version", "3",   // Use ID3v2.3
-        "-metadata", `title=${file.name.replace(/\.[^/.]+$/, "")}`, // Set title metadata
-        "-y",                    // Overwrite output
+        "-vn",
+        "-c:a", "libmp3lame",
+        "-q:a", "2",
+        "-ar", "44100",
+        "-ac", "2",
+        "-f", "mp3",
+        "-y",
         outputName
       ]);
       console.log("[FFmpeg] Conversion command finished");
