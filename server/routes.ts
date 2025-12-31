@@ -77,8 +77,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       console.log("Default admin user created (username: admin, password: admin123)");
     }
-  } catch (dbError) {
-    console.error("Database initialization error (non-fatal):", dbError);
+  } catch (dbError: any) {
+    console.error("Database initialization error (non-fatal):", dbError.message);
   }
 
 
