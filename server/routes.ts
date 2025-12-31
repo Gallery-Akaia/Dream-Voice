@@ -67,14 +67,18 @@ function broadcastToClients(data: any) {
 export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-  const existingAdmin = await storage.getUserByUsername("admin");
-  if (!existingAdmin) {
-    const hashedPassword = await bcrypt.hash("admin123", 10);
-    await storage.createUser({
-      username: "admin",
-      password: hashedPassword,
-    });
-    console.log("Default admin user created (username: admin, password: admin123)");
+  try {
+    const existingAdmin = await storage.getUserByUsername("admin");
+    if (!existingAdmin) {
+      const hashedPassword = await bcrypt.hash("admin123", 10);
+      await storage.createUser({
+        username: "admin",
+        password: hashedPassword,
+      });
+      console.log("Default admin user created (username: admin, password: admin123)");
+    }
+  } catch (dbError) {
+    console.error("Database initialization error (non-fatal):", dbError);
   }
 
 
@@ -188,7 +192,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           await fs.writeFile(tempPath, fileBuffer);
           // Enhanced FFmpeg command for server-side extraction
-          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -y "${outputPath}" -loglevel error`);
+          // -f mp3 forces the output format to be mp3
+          // -y overwrites existing files
+          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y "${outputPath}" -loglevel error`);
           fileBuffer = await fs.readFile(outputPath);
           ext = ".mp3";
           await fs.unlink(tempPath).catch(() => {});
@@ -364,7 +370,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         try {
           await fs.writeFile(tempPath, fileBuffer);
-          execSync(`ffmpeg -i "${tempPath}" -q:a 5 -map a "${outputPath}" -y -loglevel quiet`);
+          // Force mp3 format with libmp3lame
+          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y "${outputPath}" -loglevel error`);
           fileBuffer = await fs.readFile(outputPath);
           ext = ".mp3";
           finalMimeType = "audio/mpeg";
@@ -494,7 +501,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         try {
           await fs.writeFile(tempPath, audioBuffer);
-          execSync(`ffmpeg -i "${tempPath}" -q:a 5 -map a "${outputPath}" -y -loglevel quiet`);
+          // Force mp3 format with libmp3lame
+          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y "${outputPath}" -loglevel error`);
           audioBuffer = await fs.readFile(outputPath);
           ext = ".mp3";
           await fs.unlink(tempPath).catch(() => {});
