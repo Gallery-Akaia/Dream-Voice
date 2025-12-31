@@ -743,14 +743,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     noServer: true
   });
 
-  // Handle WebSocket upgrade at HTTP server level (before Express middleware)
+  // Handle WebSocket upgrade at HTTP server level
   httpServer.on('upgrade', (request, socket, head) => {
-    const url = new URL(request.url || '', `http://${request.headers.host}`);
-    if (url.pathname === '/ws') {
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit('connection', ws, request);
-      });
-    } else {
+    try {
+      const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+      if (url.pathname === '/ws') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+        });
+      } else {
+        socket.destroy();
+      }
+    } catch (e) {
       socket.destroy();
     }
   });
