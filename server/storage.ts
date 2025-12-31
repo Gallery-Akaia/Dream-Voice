@@ -1,6 +1,4 @@
-import { users, audioTracks, type User, type InsertUser, type AudioTrack, type InsertAudioTrack, type RadioState, type ChatMessage, type ListenerAnalytics, type StreamConfig } from "@shared/schema";
-import { db } from "./db";
-import { eq, asc } from "drizzle-orm";
+import { type User, type InsertUser, type AudioTrack, type InsertAudioTrack, type RadioState, type ChatMessage, type ListenerAnalytics, type StreamConfig } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -27,13 +25,19 @@ export interface IStorage {
   updateStreamConfig(config: Partial<StreamConfig>): Promise<void>;
 }
 
-export class DatabaseStorage implements IStorage {
+export class MemStorage implements IStorage {
+  private users: Map<string, User>;
+  private tracks: Map<string, AudioTrack>;
   private radioState: RadioState;
   private chatMessages: ChatMessage[] = [];
   private listenerAnalytics: ListenerAnalytics[] = [];
   private streamConfig: StreamConfig;
+  private nextUserId: number = 1;
+  private nextTrackId: number = 1;
 
   constructor() {
+    this.users = new Map();
+    this.tracks = new Map();
     this.radioState = {
       currentTrackId: null,
       playbackPosition: 0,
@@ -48,52 +52,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    return this.users.get(id);
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user;
+    return Array.from(this.users.values()).find(u => u.username === username);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
+    const id = (this.nextUserId++).toString();
+    const user: User = { ...insertUser, id };
+    this.users.set(id, user);
     return user;
   }
 
   async getAllTracks(): Promise<AudioTrack[]> {
-    return await db.select().from(audioTracks).orderBy(asc(audioTracks.order));
+    return Array.from(this.tracks.values()).sort((a, b) => a.order - b.order);
   }
 
   async getTrack(id: string): Promise<AudioTrack | undefined> {
-    const [track] = await db.select().from(audioTracks).where(eq(audioTracks.id, id));
-    return track;
+    return this.tracks.get(id);
   }
 
   async createTrack(insertTrack: InsertAudioTrack): Promise<AudioTrack> {
-    const [track] = await db.insert(audioTracks).values(insertTrack).returning();
+    const id = (this.nextTrackId++).toString();
+    const track: AudioTrack = { 
+      ...insertTrack, 
+      id,
+      artist: insertTrack.artist ?? null,
+      uploadStatus: insertTrack.uploadStatus ?? "ready",
+      order: insertTrack.order ?? 0
+    };
+    this.tracks.set(id, track);
     return track;
   }
 
   async updateTrack(id: string, updates: Partial<AudioTrack>): Promise<AudioTrack | undefined> {
-    const [track] = await db
-      .update(audioTracks)
-      .set(updates)
-      .where(eq(audioTracks.id, id))
-      .returning();
-    return track;
+    const track = this.tracks.get(id);
+    if (!track) return undefined;
+    const updatedTrack = { ...track, ...updates };
+    this.tracks.set(id, updatedTrack);
+    return updatedTrack;
   }
 
   async deleteTrack(id: string): Promise<void> {
-    await db.delete(audioTracks).where(eq(audioTracks.id, id));
+    this.tracks.delete(id);
   }
 
   async updateTrackOrder(trackId: string, newOrder: number): Promise<void> {
-    await db
-      .update(audioTracks)
-      .set({ order: newOrder })
-      .where(eq(audioTracks.id, trackId));
+    const track = this.tracks.get(trackId);
+    if (track) {
+      track.order = newOrder;
+    }
   }
 
   async getRadioState(): Promise<RadioState> {
@@ -139,4 +149,4 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new MemStorage();
