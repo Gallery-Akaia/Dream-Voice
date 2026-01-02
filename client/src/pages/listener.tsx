@@ -634,187 +634,207 @@ export default function ListenerPage() {
       <AnimatedBackground />
       <FloatingParticles />
       
-      <div className="absolute top-4 right-4 z-50 flex gap-2">
-        {!usernameEntered && (
-          <div className="flex gap-2">
-            <Input
-              type="text"
-              placeholder="Your name"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSetUsername()}
-              className="h-9 bg-card/90 backdrop-blur-md"
-              data-testid="input-username"
-            />
-            <Button size="sm" onClick={handleSetUsername} data-testid="button-set-username">
-              Enter
-            </Button>
-          </div>
-        )}
-        <ThemeToggle />
-      </div>
-
-      {usernameEntered && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="absolute top-4 left-4 z-50 bg-card/90 backdrop-blur-md"
-          onClick={handleChatOpen}
-          data-testid="button-open-chat"
-        >
-          <MessageCircle className="w-4 h-4 mr-1" />
-          {unreadCount > 0 && <span className="ml-1 bg-destructive text-destructive-foreground rounded-full px-2 text-xs">{unreadCount}</span>}
-        </Button>
-      )}
-
-      <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12 relative z-10">
-        <motion.div
-          initial={shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
-          className="w-full max-w-4xl mx-auto space-y-12"
-        >
-          <div className="text-center space-y-8">
-            <motion.div
-              className="inline-flex items-center justify-center w-32 h-32 rounded-full mb-4 relative"
-              style={{
-                background: "linear-gradient(135deg, hsla(195, 100%, 50%, 0.3), hsla(270, 60%, 65%, 0.3))",
-                backdropFilter: "blur(20px)",
-                boxShadow: "0 0 60px hsla(195, 100%, 50%, 0.3)",
-              }}
-              animate={shouldReduceMotion ? {} : {
-                boxShadow: [
-                  "0 0 60px hsla(195, 100%, 50%, 0.3)",
-                  "0 0 80px hsla(270, 60%, 65%, 0.4)",
-                  "0 0 60px hsla(195, 100%, 50%, 0.3)",
-                ],
-              }}
-              transition={{ duration: 4, repeat: Infinity }}
-            >
-              <Radio className="w-16 h-16 text-foreground drop-shadow-lg" />
-            </motion.div>
-            
-            <div className="space-y-3">
-              <h1 
-                className="text-6xl font-semibold tracking-tight drop-shadow-lg" 
-                style={{ color: "rgba(255, 255, 255, 0.95)", textShadow: "0 2px 20px rgba(0, 0, 0, 0.5), 0 0 40px rgba(59, 130, 246, 0.3)" }}
-                data-testid="text-station-name"
-              >
-                RADIO DREAM VOICE
-              </h1>
-              <p 
-                className="text-xl" 
-                style={{ color: "rgba(255, 255, 255, 0.8)", textShadow: "0 1px 10px rgba(0, 0, 0, 0.5)" }}
-              >
-                Your 24/7 streaming radio station
-              </p>
-            </div>
-
-            <AudioVisualizer isPlaying={isPlaying} shouldReduceMotion={shouldReduceMotion || false} />
-          </div>
-
-          <Card
-            className="p-10 space-y-8 relative overflow-hidden border-white/20 bg-card/80 backdrop-blur-xl shadow-2xl"
+      {!radioState.broadcastEnabled ? (
+        <div className="flex flex-col items-center justify-center min-h-screen px-4 relative z-50 text-center space-y-6">
+          <motion.div
+            initial={ { opacity: 0, scale: 0.9 } }
+            animate={ { opacity: 1, scale: 1 } }
+            className="p-12 rounded-3xl bg-background/20 backdrop-blur-3xl border border-white/10 shadow-2xl max-w-lg w-full"
           >
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <LiveIndicator isLive={radioState.isLive} />
-              <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-listener-count">
-                <Users className="w-4 h-4" />
-                <span>{radioState.listenerCount} listeners</span>
-              </div>
+            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-primary/10 mb-6">
+              <Radio className="w-12 h-12 text-primary/40" />
             </div>
-
-            <div className="text-center space-y-1" data-testid="div-current-track">
-              <h2 className="text-3xl font-semibold">{currentTrack?.title || "No tracks"}</h2>
-              <p className="text-lg text-muted-foreground">
-                {currentTrack?.artist || "Unknown Artist"}
-              </p>
-            </div>
-
-            <div className="flex justify-center py-4">
-              <Button
-                size="icon"
-                className="h-24 w-24 rounded-full shadow-lg"
-                onClick={togglePlay}
-                data-testid="button-play-pause"
-              >
-                {isPlaying ? (
-                  <Pause className="h-10 w-10" />
-                ) : (
-                  <Play className="h-10 w-10 ml-1" />
-                )}
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Volume</span>
-                <span className="text-sm text-muted-foreground">{isMuted ? 0 : volume[0]}%</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleMute}
-                  data-testid="button-mute"
-                >
-                  {isMuted || volume[0] === 0 ? (
-                    <VolumeX className="h-5 w-5" />
-                  ) : (
-                    <Volume2 className="h-5 w-5" />
-                  )}
-                </Button>
-                <Slider
-                  value={volume}
-                  onValueChange={setVolume}
-                  max={100}
-                  step={1}
-                  className="flex-1"
-                  disabled={isMuted}
-                  data-testid="slider-volume"
-                />
-              </div>
-            </div>
-
-            {streamConfig.isEnabled && streamConfig.streamUrl && (
-              <div className={`p-3 rounded-lg text-center text-sm flex items-center justify-center gap-2 ${
-                streamConnected 
-                  ? "bg-green-50 dark:bg-green-950 text-green-900 dark:text-green-100" 
-                  : streamError
-                  ? "bg-red-50 dark:bg-red-950 text-red-900 dark:text-red-100"
-                  : "bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-100"
-              }`} data-testid="text-stream-status">
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  streamConnected 
-                    ? "bg-green-600 dark:bg-green-400 animate-pulse" 
-                    : streamError
-                    ? "bg-red-600 dark:bg-red-400"
-                    : "bg-blue-600 dark:bg-blue-400 animate-pulse"
-                }`} />
-                <span className="text-left">
-                  {streamConnected 
-                    ? "Live stream connected" 
-                    : streamError 
-                    ? streamError 
-                    : "Connecting to live stream..."}
-                </span>
-              </div>
-            )}
-
-            {!isConnected && (
-              <div className="text-center text-sm text-destructive font-medium">
-                Connection lost. Trying to reconnect...
-              </div>
-            )}
-          </Card>
-
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground">
-              Synchronized playback • All listeners hear the same audio
+            <h2 className="text-4xl font-bold tracking-tight mb-4">It's off now</h2>
+            <p className="text-muted-foreground text-lg">
+              The station is currently offline. Tune in later for the best music and live vibes!
             </p>
+          </motion.div>
+        </div>
+      ) : (
+        <>
+          <div className="absolute top-4 right-4 z-50 flex gap-2">
+            {!usernameEntered && (
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="Your name"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSetUsername()}
+                  className="h-9 bg-card/90 backdrop-blur-md"
+                  data-testid="input-username"
+                />
+                <Button size="sm" onClick={handleSetUsername} data-testid="button-set-username">
+                  Enter
+                </Button>
+              </div>
+            )}
+            <ThemeToggle />
           </div>
-        </motion.div>
-      </div>
+
+          {usernameEntered && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="absolute top-4 left-4 z-50 bg-card/90 backdrop-blur-md"
+              onClick={handleChatOpen}
+              data-testid="button-open-chat"
+            >
+              <MessageCircle className="w-4 h-4 mr-1" />
+              {unreadCount > 0 && <span className="ml-1 bg-destructive text-destructive-foreground rounded-full px-2 text-xs">{unreadCount}</span>}
+            </Button>
+          )}
+
+          <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12 relative z-10">
+            <motion.div
+              initial={shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
+              className="w-full max-w-4xl mx-auto space-y-12"
+            >
+              <div className="text-center space-y-8">
+                <motion.div
+                  className="inline-flex items-center justify-center w-32 h-32 rounded-full mb-4 relative"
+                  style={{
+                    background: "linear-gradient(135deg, hsla(195, 100%, 50%, 0.3), hsla(270, 60%, 65%, 0.3))",
+                    backdropFilter: "blur(20px)",
+                    boxShadow: "0 0 60px hsla(195, 100%, 50%, 0.3)",
+                  }}
+                  animate={shouldReduceMotion ? {} : {
+                    boxShadow: [
+                      "0 0 60px hsla(195, 100%, 50%, 0.3)",
+                      "0 0 80px hsla(270, 60%, 65%, 0.4)",
+                      "0 0 60px hsla(195, 100%, 50%, 0.3)",
+                    ],
+                  }}
+                  transition={{ duration: 4, repeat: Infinity }}
+                >
+                  <Radio className="w-16 h-16 text-foreground drop-shadow-lg" />
+                </motion.div>
+                
+                <div className="space-y-3">
+                  <h1 
+                    className="text-6xl font-semibold tracking-tight drop-shadow-lg" 
+                    style={{ color: "rgba(255, 255, 255, 0.95)", textShadow: "0 2px 20px rgba(0, 0, 0, 0.5), 0 0 40px rgba(59, 130, 246, 0.3)" }}
+                    data-testid="text-station-name"
+                  >
+                    RADIO DREAM VOICE
+                  </h1>
+                  <p 
+                    className="text-xl" 
+                    style={{ color: "rgba(255, 255, 255, 0.8)", textShadow: "0 1px 10px rgba(0, 0, 0, 0.5)" }}
+                  >
+                    Your 24/7 streaming radio station
+                  </p>
+                </div>
+
+                <AudioVisualizer isPlaying={isPlaying} shouldReduceMotion={shouldReduceMotion || false} />
+              </div>
+
+              <Card
+                className="p-10 space-y-8 relative overflow-hidden border-white/20 bg-card/80 backdrop-blur-xl shadow-2xl"
+              >
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <LiveIndicator isLive={radioState.isLive} />
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-listener-count">
+                    <Users className="w-4 h-4" />
+                    <span>{radioState.listenerCount} listeners</span>
+                  </div>
+                </div>
+
+                <div className="text-center space-y-1" data-testid="div-current-track">
+                  <h2 className="text-3xl font-semibold">{currentTrack?.title || "No tracks"}</h2>
+                  <p className="text-lg text-muted-foreground">
+                    {currentTrack?.artist || "Unknown Artist"}
+                  </p>
+                </div>
+
+                <div className="flex justify-center py-4">
+                  <Button
+                    size="icon"
+                    className="h-24 w-24 rounded-full shadow-lg"
+                    onClick={togglePlay}
+                    data-testid="button-play-pause"
+                  >
+                    {isPlaying ? (
+                      <Pause className="h-10 w-10" />
+                    ) : (
+                      <Play className="h-10 w-10 ml-1" />
+                    )}
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Volume</span>
+                    <span className="text-sm text-muted-foreground">{isMuted ? 0 : volume[0]}%</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={toggleMute}
+                      data-testid="button-mute"
+                    >
+                      {isMuted || volume[0] === 0 ? (
+                        <VolumeX className="h-5 w-5" />
+                      ) : (
+                        <Volume2 className="h-5 w-5" />
+                      )}
+                    </Button>
+                    <Slider
+                      value={volume}
+                      onValueChange={setVolume}
+                      max={100}
+                      step={1}
+                      className="flex-1"
+                      disabled={isMuted}
+                      data-testid="slider-volume"
+                    />
+                  </div>
+                </div>
+
+                {streamConfig.isEnabled && streamConfig.streamUrl && (
+                  <div className={`p-3 rounded-lg text-center text-sm flex items-center justify-center gap-2 ${
+                    streamConnected 
+                      ? "bg-green-50 dark:bg-green-950 text-green-900 dark:text-green-100" 
+                      : streamError
+                      ? "bg-red-50 dark:bg-red-950 text-red-900 dark:text-red-100"
+                      : "bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-100"
+                  }`} data-testid="text-stream-status">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      streamConnected 
+                        ? "bg-green-600 dark:bg-green-400 animate-pulse" 
+                        : streamError
+                        ? "bg-red-600 dark:bg-red-400"
+                        : "bg-blue-600 dark:bg-blue-400 animate-pulse"
+                    }`} />
+                    <span className="text-left">
+                      {streamConnected 
+                        ? "Live stream connected" 
+                        : streamError 
+                        ? streamError 
+                        : "Connecting to live stream..."}
+                    </span>
+                  </div>
+                )}
+
+                {!isConnected && (
+                  <div className="text-center text-sm text-destructive font-medium">
+                    Connection lost. Trying to reconnect...
+                  </div>
+                )}
+              </Card>
+
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  Synchronized playback • All listeners hear the same audio
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </>
+      )}
 
       <ChatWidget
         isOpen={isChatOpen}
