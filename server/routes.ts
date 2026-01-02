@@ -663,13 +663,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to toggle broadcast" });
     }
   });
-      });
-
-      res.json(updatedState);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to toggle broadcast" });
-    }
-  });
 
   app.post("/api/radio/live", async (req, res) => {
     try {
