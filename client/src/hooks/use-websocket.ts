@@ -17,6 +17,7 @@ export function useWebSocket() {
     isLive: false,
     backgroundVolume: 30,
     listenerCount: 0,
+    broadcastEnabled: true,
   });
   const [tracks, setTracks] = useState<AudioTrack[]>([]);
   const [isConnected, setIsConnected] = useState(false);
