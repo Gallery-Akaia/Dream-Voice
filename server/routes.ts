@@ -184,29 +184,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let ext = path.extname(req.file.originalname);
       const isVideo = req.file.mimetype.startsWith("video/");
       
-      if (isVideo) {
-        const fs = await import("fs/promises");
-        const tempPath = path.join(process.cwd(), "uploads", `temp-fast-${Date.now()}${ext}`);
-        const outputPath = path.join(process.cwd(), "uploads", `temp-fast-${Date.now()}.mp3`);
-        
-        try {
-          await fs.writeFile(tempPath, fileBuffer);
-          // Faster conversion with -preset ultrafast and -threads 0
-          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y -threads 0 -preset ultrafast "${outputPath}" -loglevel error`);
-          fileBuffer = await fs.readFile(outputPath);
-          ext = ".mp3";
-          await fs.unlink(tempPath).catch(() => {});
-          await fs.unlink(outputPath).catch(() => {});
-        } catch (ffmpegError) {
-          console.error("Failed to extract audio from video:", ffmpegError);
-          await fs.unlink(tempPath).catch(() => {});
-          await fs.unlink(outputPath).catch(() => {});
-          return res.status(400).json({ error: "Failed to extract audio from video. Please try a different file." });
-        }
-      }
-
       const uniqueKey = `audio/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-      const mimeType = isVideo ? "audio/mpeg" : req.file.mimetype;
+      const mimeType = req.file.mimetype;
 
       const trackData = insertAudioTrackSchema.parse({
         title,
@@ -356,58 +335,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       activeUploads.delete(uploadId);
 
       let ext = path.extname(chunkedUpload.filename);
-      const isVideo = chunkedUpload.mimeType.startsWith("video/");
       let finalMimeType = chunkedUpload.mimeType;
-      
       let finalDuration = chunkedUpload.duration;
-      
-      if (isVideo) {
-        const fs = await import("fs/promises");
-        const tempPath = path.join(process.cwd(), "uploads", `temp-chunk-${Date.now()}${ext}`);
-        const outputPath = path.join(process.cwd(), "uploads", `temp-chunk-${Date.now()}.mp3`);
-        
-        try {
-          await fs.writeFile(tempPath, fileBuffer);
-          // Faster conversion with -preset ultrafast and -threads 0
-          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y -threads 0 -preset ultrafast "${outputPath}" -loglevel error`);
-          fileBuffer = await fs.readFile(outputPath);
-          ext = ".mp3";
-          finalMimeType = "audio/mpeg";
-          
-          // Extract correct duration from converted audio
-          try {
-            const metadata = await parseFile(outputPath);
-            if (metadata.format.duration) {
-              finalDuration = Math.ceil(metadata.format.duration);
-            }
-          } catch (metadataError) {
-            console.error("Failed to extract duration from converted audio:", metadataError);
-          }
-          
-          await fs.unlink(tempPath).catch(() => {});
-          await fs.unlink(outputPath).catch(() => {});
-        } catch (ffmpegError) {
-          console.error("Failed to extract audio from video:", ffmpegError);
-          await fs.unlink(tempPath).catch(() => {});
-          await fs.unlink(outputPath).catch(() => {});
-          return res.status(400).json({ error: "Failed to extract audio from video. Please try a different file." });
-        }
-      } else {
-        // For non-video uploads, also verify/extract duration from the audio file
-        const fs = await import("fs/promises");
-        const tempPath = path.join(process.cwd(), "uploads", `temp-meta-chunk-${Date.now()}${ext}`);
-        try {
-          await fs.writeFile(tempPath, fileBuffer);
-          const metadata = await parseFile(tempPath);
-          if (metadata.format.duration) {
-            finalDuration = Math.ceil(metadata.format.duration);
-          }
-          await fs.unlink(tempPath).catch(() => {});
-        } catch (metadataError) {
-          console.error("Failed to extract metadata from chunked upload:", metadataError);
-          await fs.unlink(tempPath).catch(() => {});
-        }
-      }
       
       const uniqueKey = `audio/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
 
@@ -470,6 +399,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ".ogg": "audio/ogg",
         ".aac": "audio/aac",
         ".flac": "audio/flac",
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".mov": "video/quicktime",
+        ".avi": "video/x-msvideo",
       };
 
       res.setHeader("Content-Type", mimeTypes[ext] || "audio/mpeg");
@@ -492,56 +425,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let isVideo = req.file.mimetype.startsWith("video/");
       let ext = path.extname(req.file.originalname);
 
-      if (isVideo) {
-        const fs = await import("fs/promises");
-        const tempPath = path.join(process.cwd(), "uploads", `temp-${Date.now()}${ext}`);
-        const outputPath = path.join(process.cwd(), "uploads", `temp-${Date.now()}.mp3`);
-        
-        try {
-          await fs.writeFile(tempPath, audioBuffer);
-          // Faster conversion with -preset ultrafast and -threads 0
-          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y -threads 0 -preset ultrafast "${outputPath}" -loglevel error`);
-          audioBuffer = await fs.readFile(outputPath);
-          ext = ".mp3";
-          await fs.unlink(tempPath).catch(() => {});
-          await fs.unlink(outputPath).catch(() => {});
-        } catch (ffmpegError) {
-          console.error("Failed to extract audio from video:", ffmpegError);
-          await fs.unlink(tempPath).catch(() => {});
-          return res.status(400).json({ error: "Failed to extract audio from video. Please try a different file." });
-        }
-      }
-
       let duration = parseInt(req.body.duration) || 0;
       let title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, "");
       let artist = req.body.artist || null;
-
-      if (duration === 0) {
-        const fs = await import("fs/promises");
-        const tempPath = path.join(process.cwd(), "uploads", `temp-meta-${Date.now()}${ext}`);
-        try {
-          await fs.writeFile(tempPath, audioBuffer);
-          const metadata = await parseFile(tempPath);
-          if (metadata.format.duration) {
-            duration = Math.ceil(metadata.format.duration);
-          }
-          if (metadata.common.title) {
-            title = metadata.common.title;
-          }
-          if (metadata.common.artist) {
-            artist = metadata.common.artist;
-          }
-          await fs.unlink(tempPath).catch(() => {});
-        } catch (metadataError) {
-          console.error("Failed to extract metadata:", metadataError);
-          await fs.unlink(tempPath).catch(() => {});
-          duration = 180;
-        }
-      }
-
-      if (duration === 0) {
-        return res.status(400).json({ error: "Invalid audio file: duration cannot be determined" });
-      }
 
       const uniqueKey = `audio/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
       await uploadToStorage(uniqueKey, audioBuffer, req.file.mimetype);
@@ -549,7 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const trackData = insertAudioTrackSchema.parse({
         title,
         artist,
-        duration,
+        duration: duration || 180, // Fallback if no duration provided
         fileUrl: getStorageUrl(uniqueKey),
         order: (await storage.getAllTracks()).length,
       });
