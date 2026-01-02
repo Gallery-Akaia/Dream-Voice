@@ -191,10 +191,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         try {
           await fs.writeFile(tempPath, fileBuffer);
-          // Enhanced FFmpeg command for server-side extraction
-          // -f mp3 forces the output format to be mp3
-          // -y overwrites existing files
-          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y "${outputPath}" -loglevel error`);
+          // Faster conversion with -preset ultrafast and -threads 0
+          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y -threads 0 -preset ultrafast "${outputPath}" -loglevel error`);
           fileBuffer = await fs.readFile(outputPath);
           ext = ".mp3";
           await fs.unlink(tempPath).catch(() => {});
@@ -370,8 +368,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         try {
           await fs.writeFile(tempPath, fileBuffer);
-          // Force mp3 format with libmp3lame
-          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y "${outputPath}" -loglevel error`);
+          // Faster conversion with -preset ultrafast and -threads 0
+          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y -threads 0 -preset ultrafast "${outputPath}" -loglevel error`);
           fileBuffer = await fs.readFile(outputPath);
           ext = ".mp3";
           finalMimeType = "audio/mpeg";
@@ -501,8 +499,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         try {
           await fs.writeFile(tempPath, audioBuffer);
-          // Force mp3 format with libmp3lame
-          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y "${outputPath}" -loglevel error`);
+          // Faster conversion with -preset ultrafast and -threads 0
+          execSync(`ffmpeg -i "${tempPath}" -vn -acodec libmp3lame -b:a 128k -ar 44100 -ac 2 -map a:0 -f mp3 -y -threads 0 -preset ultrafast "${outputPath}" -loglevel error`);
           audioBuffer = await fs.readFile(outputPath);
           ext = ".mp3";
           await fs.unlink(tempPath).catch(() => {});
