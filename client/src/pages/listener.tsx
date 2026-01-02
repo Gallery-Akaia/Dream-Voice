@@ -373,11 +373,11 @@ export default function ListenerPage() {
   }, [ws]);
 
   useEffect(() => {
-    if (!audioRef.current || !currentTrack || !isPlaying) {
+    if (!audioRef.current || !currentTrack || !isPlaying || !radioState.broadcastEnabled) {
       if (syncIntervalRef.current) {
         clearInterval(syncIntervalRef.current);
       }
-      if (audioRef.current && !isPlaying) {
+      if (audioRef.current && (!isPlaying || !radioState.broadcastEnabled)) {
         audioRef.current.pause();
       }
       return;
@@ -472,7 +472,7 @@ export default function ListenerPage() {
 
   // Auto-play live stream when it becomes available
   useEffect(() => {
-    if (streamConfig.isEnabled && streamConfig.streamUrl && !isPlaying && liveStreamRef.current) {
+    if (streamConfig.isEnabled && streamConfig.streamUrl && !isPlaying && liveStreamRef.current && radioState.broadcastEnabled) {
       if (!liveStreamRef.current.src || liveStreamRef.current.src !== streamConfig.streamUrl) {
         liveStreamRef.current.src = streamConfig.streamUrl;
       }
@@ -520,6 +520,7 @@ export default function ListenerPage() {
   }, [radioState.isLive]);
 
   const togglePlay = () => {
+    if (!radioState.broadcastEnabled) return;
     // Prevent rapid play/pause interruption errors
     if (!liveStreamRef.current) return;
     

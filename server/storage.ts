@@ -44,6 +44,7 @@ export class MemStorage implements IStorage {
       isLive: false,
       backgroundVolume: 30,
       listenerCount: 0,
+      broadcastEnabled: true,
     };
     this.streamConfig = {
       streamUrl: "",

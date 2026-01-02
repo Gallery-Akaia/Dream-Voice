@@ -29,13 +29,16 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Trash2, Music, GripVertical, Loader2, CheckCircle2, AlertCircle, Play, Pause, Settings2, FileAudio, Plus, Edit2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Upload, Trash2, Music, GripVertical, Loader2, CheckCircle2, AlertCircle, Play, Pause, Settings2, FileAudio, Plus, Edit2, Radio } from "lucide-react";
 
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
+import { useWebSocket } from "@/hooks/use-websocket";
 
 export default function AdminPlaylist() {
   const { toast } = useToast();
+  const { radioState } = useWebSocket();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -396,7 +399,33 @@ export default function AdminPlaylist() {
           </h1>
           <p className="text-muted-foreground mt-1">Manage your radio station's music library</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-4 items-center">
+          <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-full border">
+            <Radio className={`h-4 w-4 ${radioState.broadcastEnabled ? "text-primary animate-pulse" : "text-muted-foreground"}`} />
+            <Label htmlFor="broadcast-toggle" className="text-sm font-medium cursor-pointer">
+              {radioState.broadcastEnabled ? "Public Broadcast ON" : "Public Broadcast OFF"}
+            </Label>
+            <Switch
+              id="broadcast-toggle"
+              checked={radioState.broadcastEnabled}
+              onCheckedChange={async (checked) => {
+                try {
+                  await apiRequest("POST", "/api/radio/broadcast-toggle", { enabled: checked });
+                  toast({
+                    title: checked ? "Broadcast enabled" : "Broadcast disabled",
+                    description: checked ? "Listeners can now hear your music" : "Playback is now disabled for all listeners",
+                  });
+                } catch (error) {
+                  toast({
+                    title: "Error",
+                    description: "Failed to toggle broadcast state",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              data-testid="toggle-broadcast"
+            />
+          </div>
           <input
             type="file"
             accept="audio/*,video/*"

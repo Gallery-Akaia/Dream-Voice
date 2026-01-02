@@ -643,6 +643,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/radio/broadcast-toggle", async (req, res) => {
+    try {
+      const { enabled } = req.body;
+      if (typeof enabled !== "boolean") {
+        return res.status(400).json({ error: "Invalid enabled state" });
+      }
+
+      await storage.updateRadioState({ broadcastEnabled: enabled });
+      const updatedState = await storage.getRadioState();
+
+      broadcastToClients({
+        type: "radio_state_updated",
+        state: updatedState,
+      });
+
+      res.json(updatedState);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to toggle broadcast" });
+    }
+  });
+
   app.post("/api/radio/live", async (req, res) => {
     try {
       const { isLive, backgroundVolume } = req.body;

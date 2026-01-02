@@ -39,6 +39,7 @@ export interface RadioState {
   isLive: boolean;
   backgroundVolume: number;
   listenerCount: number;
+  broadcastEnabled: boolean;
 }
 
 export interface AdminLiveState {
