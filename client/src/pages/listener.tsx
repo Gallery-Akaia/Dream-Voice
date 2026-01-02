@@ -392,6 +392,7 @@ export default function ListenerPage() {
       currentTrackUrlRef.current = resolvedUrl;
       audio.crossOrigin = "anonymous";
       audio.src = resolvedUrl;
+      // Use radioState.playbackPosition directly for the initial load
       audio.currentTime = radioState.playbackPosition;
       audio.play().catch((error) => {
         console.error("Audio playback error:", error?.name, error?.message, resolvedUrl);
