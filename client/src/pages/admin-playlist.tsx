@@ -289,39 +289,10 @@ export default function AdminPlaylist() {
 
     try {
       setIsUploading(true);
-      setUploadProgress(5);
+      setUploadProgress(60);
 
       let fileToUpload = file;
-      let duration = 0;
-
-      if (isVideo) {
-        toast({
-          title: "Processing Video",
-          description: "Extracting audio locally for instant upload...",
-        });
-        
-        try {
-          // This creates a NEW File object which is an MP3
-          fileToUpload = await extractAudioLocally(file);
-          // Get duration locally after conversion
-          duration = await getAudioDuration(fileToUpload);
-          console.log("[Processing] Successfully extracted audio as MP3");
-        } catch (ffmpegErr) {
-          console.error("FFmpeg extraction failed:", ffmpegErr);
-          toast({
-            title: "Processing Failed",
-            description: "Uploading original video file...",
-            variant: "destructive",
-          });
-          // If extraction fails, we upload the original file
-          fileToUpload = file;
-          duration = await getAudioDuration(file);
-        }
-      } else {
-        duration = await getAudioDuration(file);
-      }
-
-      setUploadProgress(60);
+      let duration = await getAudioDuration(file);
 
       // 1. Upload to Supabase Storage
       console.log("[Supabase] Step 1: Starting direct upload...");
