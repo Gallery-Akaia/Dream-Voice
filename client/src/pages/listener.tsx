@@ -414,14 +414,13 @@ export default function ListenerPage() {
         const clientPosition = audio.currentTime;
         const drift = Math.abs(serverPosition - clientPosition);
 
-        // Relaxed sync: 5s drift threshold to prevent "muting" issues during playback
-        // This prevents the player from seeking too aggressively which causes buffering/muting
-        if (drift > 5.0) {
-          console.log("[Sync] Large drift detected:", drift, "Syncing to:", serverPosition);
+        // More aggressive sync for "live" feel: 2s drift threshold
+        if (drift > 2.0) {
+          console.log("[Sync] Drift detected:", drift, "Syncing to:", serverPosition);
           audio.currentTime = serverPosition;
         }
       }
-    }, 2000); 
+    }, 1000); 
 
     return () => {
       if (syncIntervalRef.current) {
