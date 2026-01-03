@@ -765,44 +765,45 @@ export default function ListenerPage() {
                   </Button>
                 </div>
 
-                <div className="space-y-6">
-                  {!radioState.broadcastEnabled && (
-                    <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 flex flex-col items-center text-center">
-                      <Lock className="h-8 w-8 text-amber-500 mb-2 opacity-80" />
-                      <p className="text-sm font-medium text-foreground">Station currently offline</p>
-                      <p className="text-xs text-muted-foreground mt-1">Broadcast is locked by admin. Check back later!</p>
-                    </div>
-                  )}
+                  <div className="space-y-6">
+                    {!radioState.broadcastEnabled && (
+                      <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 flex flex-col items-center text-center">
+                        <Lock className="h-8 w-8 text-amber-500 mb-2 opacity-80" />
+                        <p className="text-sm font-medium text-foreground">Station currently offline</p>
+                        <p className="text-xs text-muted-foreground mt-1">Broadcast is locked by admin. Check back later!</p>
+                      </div>
+                    )}
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Volume</span>
-                      <span className="text-sm text-muted-foreground">{isMuted ? 0 : volume[0]}%</span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Volume</span>
+                        <span className="text-sm text-muted-foreground">{isMuted ? 0 : volume[0]}%</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={toggleMute}
+                          data-testid="button-mute"
+                        >
+                          {isMuted || volume[0] === 0 ? (
+                            <VolumeX className="h-5 w-5" />
+                          ) : (
+                            <Volume2 className="h-5 w-5" />
+                          )}
+                        </Button>
+                        <Slider
+                          value={volume}
+                          onValueChange={setVolume}
+                          max={100}
+                          step={1}
+                          className="flex-1"
+                          disabled={isMuted}
+                          data-testid="slider-volume"
+                        />
+                      </div>
                     </div>
-                  <div className="flex items-center gap-4">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={toggleMute}
-                      data-testid="button-mute"
-                    >
-                      {isMuted || volume[0] === 0 ? (
-                        <VolumeX className="h-5 w-5" />
-                      ) : (
-                        <Volume2 className="h-5 w-5" />
-                      )}
-                    </Button>
-                    <Slider
-                      value={volume}
-                      onValueChange={setVolume}
-                      max={100}
-                      step={1}
-                      className="flex-1"
-                      disabled={isMuted}
-                      data-testid="slider-volume"
-                    />
                   </div>
-                </div>
 
                 {streamConfig.isEnabled && streamConfig.streamUrl && (
                   <div className={`p-3 rounded-lg text-center text-sm flex items-center justify-center gap-2 ${
