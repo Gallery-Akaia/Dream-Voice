@@ -634,64 +634,30 @@ export default function ListenerPage() {
       <AnimatedBackground />
       <FloatingParticles />
       
-      {!radioState.broadcastEnabled ? (
-        <div className="flex flex-col items-center justify-center min-h-screen px-4 relative z-50 text-center space-y-6">
-          <motion.div
-            initial={ { opacity: 0, scale: 0.9 } }
-            animate={ { opacity: 1, scale: 1 } }
-            className="p-12 rounded-3xl bg-background/20 backdrop-blur-3xl border border-white/10 shadow-2xl max-w-lg w-full"
-          >
-            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-primary/10 mb-6">
-              <Radio className="w-12 h-12 text-primary/40" />
-            </div>
-            <h2 className="text-4xl font-bold tracking-tight mb-4">It's off now</h2>
-            <p className="text-muted-foreground text-lg">
-              The station is currently offline. Tune in later for the best music and live vibes!
-            </p>
-          </motion.div>
-        </div>
-      ) : (
-        <>
-          <div className="absolute top-4 right-4 z-50 flex gap-2">
-            {!usernameEntered && (
-              <div className="flex gap-2">
-                <Input
-                  type="text"
-                  placeholder="Your name"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSetUsername()}
-                  className="h-9 bg-card/90 backdrop-blur-md"
-                  data-testid="input-username"
-                />
-                <Button size="sm" onClick={handleSetUsername} data-testid="button-set-username">
-                  Enter
-                </Button>
-              </div>
-            )}
-            <ThemeToggle />
-          </div>
-
-          {usernameEntered && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="absolute top-4 left-4 z-50 bg-card/90 backdrop-blur-md"
-              onClick={handleChatOpen}
-              data-testid="button-open-chat"
-            >
-              <MessageCircle className="w-4 h-4 mr-1" />
-              {unreadCount > 0 && <span className="ml-1 bg-destructive text-destructive-foreground rounded-full px-2 text-xs">{unreadCount}</span>}
-            </Button>
-          )}
-
-          <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12 relative z-10">
+      <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12 relative z-10">
+        {!radioState.broadcastEnabled && (
+          <div className="fixed inset-0 z-[100] bg-background/60 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div
-              initial={shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
-              className="w-full max-w-4xl mx-auto space-y-12"
+              initial={ { opacity: 0, scale: 0.9 } }
+              animate={ { opacity: 1, scale: 1 } }
+              className="p-8 rounded-3xl bg-card/90 backdrop-blur-xl border border-white/10 shadow-2xl max-w-sm w-full text-center space-y-4"
             >
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
+                <Lock className="w-8 h-8 text-primary/60" />
+              </div>
+              <h2 className="text-2xl font-bold">Station Offline</h2>
+              <p className="text-muted-foreground">
+                The broadcast is currently paused by the administrator. The station is still here, check back soon!
+              </p>
+            </motion.div>
+          </div>
+        )}
+        <motion.div
+          initial={shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
+          className="w-full max-w-4xl mx-auto space-y-12"
+        >
               <div className="text-center space-y-8">
                 <motion.div
                   className="inline-flex items-center justify-center w-32 h-32 rounded-full mb-4 relative"
@@ -759,6 +725,8 @@ export default function ListenerPage() {
                   >
                     {isPlaying && radioState.broadcastEnabled ? (
                       <Pause className="h-10 w-10" />
+                    ) : !radioState.broadcastEnabled ? (
+                      <Lock className="h-10 w-10 text-muted-foreground" />
                     ) : (
                       <Play className="h-10 w-10 ml-1" />
                     )}

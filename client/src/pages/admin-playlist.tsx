@@ -485,7 +485,11 @@ export default function AdminPlaylist() {
                             disabled={track.uploadStatus !== "ready" || playTrackMutation.isPending}
                             data-testid={`button-play-${track.id}`}
                           >
-                            <Play className="h-4 w-4" />
+                            {!radioState.broadcastEnabled ? (
+                              <Lock className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <Play className="h-4 w-4" />
+                            )}
                           </Button>
                           <Button
                             size="icon"
