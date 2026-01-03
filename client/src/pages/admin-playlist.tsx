@@ -289,47 +289,32 @@ export default function AdminPlaylist() {
 
     try {
       setIsUploading(true);
-      setUploadProgress(60);
+      setUploadProgress(0);
 
-      let fileToUpload = file;
       let duration = await getAudioDuration(file);
+      const actualExt = "mp3";
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
+      const filePath = `uploads/${fileName}`;
 
-      // 1. Upload to Supabase Storage
-      console.log("[Supabase] Step 1: Starting direct upload...");
-      console.time("Supabase Direct Upload");
-      
-    const isActuallyAudio = fileToUpload.type.startsWith("audio/") || fileToUpload.name.toLowerCase().endsWith(".mp3");
-    const actualExt = "mp3";
-    const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${actualExt}`;
-    const filePath = `uploads/${fileName}`;
+      console.log(`[Supabase] Starting resumable upload: ${fileName}`);
 
-    console.log(`[Supabase] Final Upload: ${fileName} (${fileToUpload.size} bytes) - MIME: audio/mpeg`);
-
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('audio-files')
-      .upload(filePath, fileToUpload, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: "audio/mpeg", 
-      });
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('audio-files')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: "audio/mpeg",
+        });
 
       if (uploadError) {
-        console.error("[Supabase Error] Upload failed:", uploadError);
-        console.timeEnd("Supabase Direct Upload");
         throw uploadError;
       }
-      console.timeEnd("Supabase Direct Upload");
-      console.log("[Supabase] Success! File stored.");
-      setUploadProgress(80);
-
-      // 2. Get Public URL
-      console.log("[Supabase] Step 2: Generating public access link...");
+      
+      setUploadProgress(90);
       const { data: { publicUrl } } = supabase.storage
         .from('audio-files')
         .getPublicUrl(filePath);
 
-      // 3. Save to Database via API
-      console.log("[Database] Step 3: Registering track...");
       const newTrack = {
         title: file.name.replace(/\.[^/.]+$/, ""),
         artist: "Unknown Artist",
