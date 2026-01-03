@@ -734,6 +734,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     ws.on("close", async () => {
       connectedClients.delete(ws);
+      const updatedState = await storage.getRadioState();
+      updatedState.listenerCount = connectedClients.size;
       await storage.updateRadioState({ listenerCount: connectedClients.size });
       
       broadcastToClients({
@@ -789,10 +791,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const currentTrack = tracks[currentTrackIndex];
       const newPosition = state.playbackPosition + 1;
-
-      await storage.updateRadioState({
-        playbackPosition: newPosition,
-      });
 
       if (newPosition >= currentTrack.duration) {
         const nextTrackIndex = (currentTrackIndex + 1) % tracks.length;
