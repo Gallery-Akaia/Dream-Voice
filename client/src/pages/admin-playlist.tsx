@@ -482,7 +482,7 @@ export default function AdminPlaylist() {
                             size="icon"
                             variant="ghost"
                             onClick={() => playTrackMutation.mutate(track.id)}
-                            disabled={track.uploadStatus !== "ready" || playTrackMutation.isPending}
+                            disabled={track.uploadStatus !== "ready" || playTrackMutation.isPending || !radioState.broadcastEnabled}
                             data-testid={`button-play-${track.id}`}
                           >
                             {!radioState.broadcastEnabled ? (

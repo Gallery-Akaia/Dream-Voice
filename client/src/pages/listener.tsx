@@ -4,7 +4,6 @@ import { Slider } from "@/components/ui/slider";
 import { Card } from "@/components/ui/card";
 import { LiveIndicator } from "@/components/live-indicator";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ChatWidget } from "@/components/chat-widget";
 import { AnimatedBackground } from "@/components/animated-background";
 import { FloatingParticles } from "@/components/floating-particles";
 import { AudioVisualizer } from "@/components/audio-visualizer";
@@ -46,10 +45,8 @@ export default function ListenerPage() {
 
   const resolveTrackUrl = useCallback((url: string): string => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
-      // If it's a Supabase URL, try to proxy it or ensure it's absolute
       return url;
     }
-    // For local dev / relative paths
     return new URL(url, window.location.origin).href;
   }, []);
 
@@ -75,20 +72,15 @@ export default function ListenerPage() {
 
   const playMicrophoneAudio = useCallback((arrayBuffer: ArrayBuffer) => {
     try {
-      if (arrayBuffer.byteLength < 8) {
-        return;
-      }
+      if (arrayBuffer.byteLength < 8) return;
       
       const dataView = new DataView(arrayBuffer);
       const sampleRate = dataView.getUint32(0, true);
       const pcmByteLength = dataView.getUint32(4, true);
       
-      if (arrayBuffer.byteLength < 8 + pcmByteLength || sampleRate < 8000 || sampleRate > 96000) {
-        return;
-      }
+      if (arrayBuffer.byteLength < 8 + pcmByteLength || sampleRate < 8000 || sampleRate > 96000) return;
       
       const pcmSlice = arrayBuffer.slice(8, 8 + pcmByteLength);
-      // Convert Int16 to Float32
       const int16Data = new Int16Array(pcmSlice);
       const pcmData = new Float32Array(int16Data.length);
       for (let i = 0; i < int16Data.length; i++) {
@@ -107,14 +99,8 @@ export default function ListenerPage() {
       }
       
       const audioContext = micAudioContextRef.current;
-      
-      if (audioContext.state === 'suspended') {
-        audioContext.resume();
-      }
-      
-      if (!micGainNodeRef.current) {
-        return;
-      }
+      if (audioContext.state === 'suspended') audioContext.resume();
+      if (!micGainNodeRef.current) return;
 
       const audioBuffer = audioContext.createBuffer(1, pcmData.length, sampleRate);
       audioBuffer.getChannelData(0).set(pcmData);
@@ -122,27 +108,21 @@ export default function ListenerPage() {
       const currentTime = audioContext.currentTime;
       const bufferDuration = pcmData.length / sampleRate;
       
-      // If gap too large (>500ms), reset to avoid glitches
       if (micNextStartTimeRef.current < currentTime - 0.5) {
         micNextStartTimeRef.current = currentTime + 0.02;
       }
       
-      // Schedule to play immediately after the previous chunk
       const startTime = Math.max(currentTime + 0.005, micNextStartTimeRef.current);
-      
       const source = audioContext.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(micGainNodeRef.current);
       source.start(startTime);
-      
-      // Update next start time to maintain continuous playback
       micNextStartTimeRef.current = startTime + bufferDuration;
     } catch (error) {
       console.error("Microphone audio playback error:", error);
     }
   }, [isMuted, volume]);
 
-  // Store the callback in ref so WebSocket handler can always access latest version
   useEffect(() => {
     playMicrophoneAudioRef.current = playMicrophoneAudio;
   }, [playMicrophoneAudio]);
@@ -155,10 +135,8 @@ export default function ListenerPage() {
     }
 
     const audio = audioRef.current;
-    
     const handleAudioError = (e: Event) => {
       const mediaError = (e.target as HTMLAudioElement).error;
-      // Only log error if there's actually a source URL set
       if (audio.src) {
         console.error("Audio element error:", {
           code: mediaError?.code,
@@ -170,7 +148,6 @@ export default function ListenerPage() {
 
     audio.addEventListener("error", handleAudioError);
 
-    // Setup live stream audio element for low-latency streaming
     if (!liveStreamRef.current) {
       liveStreamRef.current = new Audio();
       liveStreamRef.current.preload = "none";
@@ -184,17 +161,14 @@ export default function ListenerPage() {
       const attemptReconnect = () => {
         reconnectAttemptsRef.current += 1;
         if (reconnectAttemptsRef.current > 5) {
-          setStreamError("Connection failed after multiple attempts. Please check the stream URL or try again later.");
+          setStreamError("Connection failed after multiple attempts.");
           return;
         }
         
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000); // Exponential backoff, max 30s
-        console.log(`Attempting reconnect ${reconnectAttemptsRef.current}/5 in ${delay}ms...`);
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
         setStreamError(`Connection lost. Reconnecting in ${Math.round(delay / 1000)}s...`);
         
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
+        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
         
         reconnectTimeoutRef.current = setTimeout(() => {
           if (liveStreamRef.current && streamConfig.streamUrl) {
@@ -207,152 +181,63 @@ export default function ListenerPage() {
         }, delay);
       };
 
-      const detectErrorType = (mediaError: MediaError | null, src: string): string => {
-        if (!mediaError) return "Stream unavailable";
-        
-        // Error code detection
-        switch (mediaError.code) {
-          case 1: // MEDIA_ERR_ABORTED
-            return "Stream aborted. The broadcaster may have disconnected.";
-          case 2: // MEDIA_ERR_NETWORK
-            // Try to determine if it's mixed content or network error
-            if (window.location.protocol === 'https:' && src.startsWith('http://')) {
-              return "Mixed Content Error: Your site uses HTTPS but the stream URL uses HTTP. Update the stream URL to use HTTPS.";
-            }
-            return "Connection lost. Broadcaster offline or firewall/port blocked (:8000). Reconnecting...";
-          case 3: // MEDIA_ERR_DECODE
-            return "Audio codec corrupted or changed. Broadcaster may have changed Winamp settings mid-stream.";
-          case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
-            return "Stream Format Error: This audio format isn't supported. The encoder should use MP3, AAC, or OGG Vorbis.";
-          default:
-            return "Stream error. Check the stream URL or broadcaster status.";
-        }
-      };
-      
       const handleStreamError = (e: Event) => {
         const mediaError = (e.target as HTMLAudioElement).error;
-        const errorMessage = detectErrorType(mediaError, liveStreamRef.current?.src || "");
-        console.error("Live stream error:", {
-          code: mediaError?.code,
-          message: mediaError?.message,
-          src: liveStreamRef.current?.src,
-          errorMessage,
-        });
+        console.error("Live stream error:", mediaError);
         setStreamConnected(false);
         setIsStreamLoading(false);
-        setStreamError(errorMessage);
-        
-        // Auto-reconnect on network errors
-        if (mediaError?.code === 2) { // MEDIA_ERR_NETWORK
-          attemptReconnect();
-        }
+        setStreamError("Stream error. Check broadcaster status.");
+        if (mediaError?.code === 2) attemptReconnect();
       };
       
       const handleStreamLoadStart = () => {
         setIsStreamLoading(true);
-        setStreamError(""); // Clear previous errors when attempting to load
-        
-        // Set buffer timeout - if still loading after 15 seconds, show stuck message
-        if (bufferTimeoutRef.current) {
-          clearTimeout(bufferTimeoutRef.current);
-        }
+        setStreamError("");
+        if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
         bufferTimeoutRef.current = setTimeout(() => {
           if (isStreamLoading && !streamConnected) {
-            console.warn("Stream buffer timeout - likely too high pre-buffer on server");
-            setStreamError("Buffer stuck: Server pre-buffer too high or broadcaster offline. Check Shoutcast settings.");
+            setStreamError("Buffer stuck. Check stream settings.");
           }
         }, 15000);
-      };
-      
-      const handleStreamStalled = () => {
-        console.warn("Stream stalled - checking connection");
-        if (!streamConnected) {
-          setStreamError("Buffering... (Slow connection or server waiting for data)");
-        }
-      };
-      
-      const handleStreamSuspend = () => {
-        console.warn("Stream loading suspended - browser may be in power saving mode");
-        setStreamError("Stream paused by browser. Tab may be in sleep mode.");
-      };
-      
-      const handleStreamAbort = () => {
-        console.warn("Stream loading aborted by user agent");
-        setStreamError("AbortError: Browser stopped loading to save data. Reconnecting...");
-        setIsStreamLoading(false);
-        attemptReconnect();
       };
 
       liveStreamRef.current.addEventListener("canplay", handleStreamCanPlay);
       liveStreamRef.current.addEventListener("error", handleStreamError);
       liveStreamRef.current.addEventListener("loadstart", handleStreamLoadStart);
-      liveStreamRef.current.addEventListener("stalled", handleStreamStalled);
-      liveStreamRef.current.addEventListener("suspend", handleStreamSuspend);
-      liveStreamRef.current.addEventListener("abort", handleStreamAbort);
-
-      return () => {
-        if (liveStreamRef.current) {
-          liveStreamRef.current.removeEventListener("canplay", handleStreamCanPlay);
-          liveStreamRef.current.removeEventListener("error", handleStreamError);
-          liveStreamRef.current.removeEventListener("loadstart", handleStreamLoadStart);
-          liveStreamRef.current.removeEventListener("stalled", handleStreamStalled);
-          liveStreamRef.current.removeEventListener("suspend", handleStreamSuspend);
-          liveStreamRef.current.removeEventListener("abort", handleStreamAbort);
-        }
-        audio.removeEventListener("error", handleAudioError);
-        if (syncIntervalRef.current) {
-          clearInterval(syncIntervalRef.current);
-        }
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
-        if (bufferTimeoutRef.current) {
-          clearTimeout(bufferTimeoutRef.current);
-        }
-        if (micAudioContextRef.current) {
-          micAudioContextRef.current.close();
-        }
-      };
     }
 
     return () => {
+      if (liveStreamRef.current) {
+        liveStreamRef.current.removeEventListener("canplay", handleStreamCanPlay);
+        liveStreamRef.current.removeEventListener("error", handleStreamError);
+        liveStreamRef.current.removeEventListener("loadstart", handleStreamLoadStart);
+      }
       audio.removeEventListener("error", handleAudioError);
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-      }
-      if (micAudioContextRef.current) {
-        micAudioContextRef.current.close();
-      }
+      if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
+      if (micAudioContextRef.current) micAudioContextRef.current.close();
     };
   }, []);
 
   useEffect(() => {
     if (!ws) return;
-
     const handleMessage = async (event: MessageEvent) => {
       try {
         let arrayBuffer: ArrayBuffer | null = null;
-        
-        if (event.data instanceof Blob) {
-          arrayBuffer = await event.data.arrayBuffer();
-        } else if (event.data instanceof ArrayBuffer) {
-          arrayBuffer = event.data;
-        }
+        if (event.data instanceof Blob) arrayBuffer = await event.data.arrayBuffer();
+        else if (event.data instanceof ArrayBuffer) arrayBuffer = event.data;
         
         if (arrayBuffer && arrayBuffer.byteLength >= 8) {
-          if (playMicrophoneAudioRef.current) {
-            playMicrophoneAudioRef.current(arrayBuffer);
-          }
+          if (playMicrophoneAudioRef.current) playMicrophoneAudioRef.current(arrayBuffer);
           return;
         }
         
         if (typeof event.data === 'string') {
           const data = JSON.parse(event.data);
-          if (data.type === "initial_state" && data.streamConfig) {
-            setStreamConfig(data.streamConfig);
-          } else if (data.type === "stream_config_updated" && data.config) {
-            setStreamConfig(data.config);
-          } else if (data.type === "chat_message") {
+          if (data.type === "initial_state" && data.streamConfig) setStreamConfig(data.streamConfig);
+          else if (data.type === "stream_config_updated" && data.config) setStreamConfig(data.config);
+          else if (data.type === "chat_message") {
             const newMessage: ChatMessage = {
               id: Math.random().toString(),
               username: data.username,
@@ -367,273 +252,162 @@ export default function ListenerPage() {
         console.error("WebSocket message error:", error);
       }
     };
-
     ws.addEventListener("message", handleMessage);
     return () => ws.removeEventListener("message", handleMessage);
   }, [ws]);
 
   useEffect(() => {
     if (!audioRef.current || !currentTrack || !isPlaying || !radioState.broadcastEnabled) {
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-      }
-      if (audioRef.current && (!isPlaying || !radioState.broadcastEnabled)) {
-        audioRef.current.pause();
-      }
+      if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+      if (audioRef.current && (!isPlaying || !radioState.broadcastEnabled)) audioRef.current.pause();
       return;
     }
 
     const audio = audioRef.current;
     const resolvedUrl = resolveTrackUrl(currentTrack.fileUrl);
 
-    console.log("[Listener] Playing track:", currentTrack.title, "at URL:", resolvedUrl);
-
     if (currentTrackUrlRef.current !== resolvedUrl) {
       currentTrackUrlRef.current = resolvedUrl;
-      audio.crossOrigin = "anonymous";
       audio.src = resolvedUrl;
-      // Use radioState.playbackPosition directly for the initial load
       audio.currentTime = radioState.playbackPosition;
-      audio.play().catch((error) => {
-        console.error("Audio playback error:", error?.name, error?.message, resolvedUrl);
+      audio.play().catch(error => {
+        console.error("Audio playback error:", error);
         setIsPlaying(false);
       });
     } else if (audio.paused) {
-      audio.play().catch((error) => {
-        console.error("Audio resume error:", error?.name, error?.message);
+      audio.play().catch(error => {
+        console.error("Audio resume error:", error);
         setIsPlaying(false);
       });
     }
 
-    if (syncIntervalRef.current) {
-      clearInterval(syncIntervalRef.current);
-    }
-
+    if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
     syncIntervalRef.current = setInterval(() => {
       if (!audio.paused && currentTrack) {
         const serverPosition = serverPositionRef.current;
-        const clientPosition = audio.currentTime;
-        const drift = Math.abs(serverPosition - clientPosition);
-
-        // More aggressive sync for "live" feel: 2s drift threshold
-        if (drift > 2.0) {
-          console.log("[Sync] Drift detected:", drift, "Syncing to:", serverPosition);
-          audio.currentTime = serverPosition;
-        }
+        const drift = Math.abs(serverPosition - audio.currentTime);
+        if (drift > 2.0) audio.currentTime = serverPosition;
       }
-    }, 1000); 
+    }, 1000);
 
-    return () => {
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-      }
-    };
-  }, [isPlaying, currentTrack, radioState.currentTrackId, resolveTrackUrl]);
+    return () => { if (syncIntervalRef.current) clearInterval(syncIntervalRef.current); };
+  }, [isPlaying, currentTrack, radioState.currentTrackId, resolveTrackUrl, radioState.broadcastEnabled]);
 
-  useEffect(() => {
-    serverPositionRef.current = radioState.playbackPosition;
-  }, [radioState.playbackPosition]);
-
-  useEffect(() => {
-    if (!isConnected) {
-      setIsPlaying(false);
-      if (syncIntervalRef.current) {
-        clearInterval(syncIntervalRef.current);
-      }
-    }
-  }, [isConnected]);
+  useEffect(() => { serverPositionRef.current = radioState.playbackPosition; }, [radioState.playbackPosition]);
+  useEffect(() => { if (!isConnected) setIsPlaying(false); }, [isConnected]);
 
   useEffect(() => {
     if (!audioRef.current) return;
     const volumeLevel = isMuted ? 0 : volume[0] / 100;
     audioRef.current.volume = volumeLevel;
-    if (liveStreamRef.current) {
-      liveStreamRef.current.volume = volumeLevel;
-    }
+    if (liveStreamRef.current) liveStreamRef.current.volume = volumeLevel;
   }, [isMuted, volume]);
 
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
-    
     if (lastTrackIdRef.current !== currentTrack.id) {
       lastTrackIdRef.current = currentTrack.id;
       const resolvedUrl = resolveTrackUrl(currentTrack.fileUrl);
       currentTrackUrlRef.current = resolvedUrl;
       audioRef.current.src = resolvedUrl;
       audioRef.current.currentTime = radioState.playbackPosition;
-      
-      if (isPlaying) {
-        audioRef.current.play().catch((error) => {
-          console.error("Track change play error:", error?.name, error?.message, resolvedUrl);
-        });
-      }
+      if (isPlaying) audioRef.current.play().catch(console.error);
     }
-  }, [currentTrack, isPlaying, resolveTrackUrl]);
+  }, [currentTrack, isPlaying, resolveTrackUrl, radioState.playbackPosition]);
 
-  // Auto-play live stream when it becomes available
   useEffect(() => {
     if (streamConfig.isEnabled && streamConfig.streamUrl && !isPlaying && liveStreamRef.current && radioState.broadcastEnabled) {
-      if (!liveStreamRef.current.src || liveStreamRef.current.src !== streamConfig.streamUrl) {
-        liveStreamRef.current.src = streamConfig.streamUrl;
-      }
-      setStreamError(""); // Clear errors when starting new attempt
+      liveStreamRef.current.src = streamConfig.streamUrl;
+      setStreamError("");
       isPlayingRef.current = true;
-      reconnectAttemptsRef.current = 0; // Reset reconnection attempts
-      
-      const playPromise = liveStreamRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(err => {
-          console.error("Auto-play live stream failed:", err);
-          isPlayingRef.current = false;
-          
-          // Handle autoplay policy error - let user click play
-          if (err instanceof DOMException && err.name === "NotAllowedError") {
-            setStreamError("Autoplay blocked: Click the play button to start listening.");
-            setIsPlaying(false);
-          } else if (err instanceof DOMException && err.name === "NotSupportedError") {
-            setStreamError("CORS Error: The streaming server doesn't allow requests from this domain.");
-          } else {
-            setStreamError("Cannot connect to stream. Check URL or broadcaster status.");
-          }
-        });
-      }
+      liveStreamRef.current.play().catch(err => {
+        console.error("Auto-play live stream failed:", err);
+        isPlayingRef.current = false;
+        if (err instanceof DOMException && err.name === "NotAllowedError") setStreamError("Autoplay blocked.");
+        else setStreamError("Connection failed.");
+        setIsPlaying(false);
+      });
       setIsPlaying(true);
     } else if (!streamConfig.isEnabled && liveStreamRef.current && isPlaying) {
-      // Stop playing if stream is disabled
       liveStreamRef.current.pause();
       isPlayingRef.current = false;
       setIsPlaying(false);
     }
-  }, [streamConfig.isEnabled, streamConfig.streamUrl]);
+  }, [streamConfig.isEnabled, streamConfig.streamUrl, radioState.broadcastEnabled]);
 
   useEffect(() => {
     if (!micGainNodeRef.current) return;
-    const volumeLevel = isMuted ? 0 : volume[0] / 100;
-    micGainNodeRef.current.gain.value = volumeLevel;
+    micGainNodeRef.current.gain.value = isMuted ? 0 : volume[0] / 100;
   }, [isMuted, volume]);
-
-  useEffect(() => {
-    if (radioState.isLive) {
-      micNextStartTimeRef.current = 0;
-      console.log("Admin went live - reset microphone scheduling");
-    }
-  }, [radioState.isLive]);
 
   const togglePlay = () => {
     if (!radioState.broadcastEnabled) return;
-    // Prevent rapid play/pause interruption errors
     if (!liveStreamRef.current) return;
     
-    // If live stream is enabled and available, play that instead
     if (streamConfig.isEnabled && streamConfig.streamUrl) {
       if (isPlaying) {
         liveStreamRef.current.pause();
         isPlayingRef.current = false;
       } else {
-        // Don't attempt play if already loading
-        if (isStreamLoading) {
-          console.warn("Stream already loading, skipping play request");
-          return;
-        }
-        
-        if (!liveStreamRef.current.src || liveStreamRef.current.src !== streamConfig.streamUrl) {
-          liveStreamRef.current.src = streamConfig.streamUrl;
-        }
-        
+        if (isStreamLoading) return;
+        liveStreamRef.current.src = streamConfig.streamUrl;
         isPlayingRef.current = true;
-        const playPromise = liveStreamRef.current.play();
-        
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              console.log("Stream playback started successfully");
-              reconnectAttemptsRef.current = 0; // Reset reconnect attempts on success
-            })
-            .catch(err => {
-              console.error("Live stream play error:", err);
-              isPlayingRef.current = false;
-              
-              // Handle specific error types
-              if (err instanceof DOMException) {
-                switch (err.name) {
-                  case "NotAllowedError":
-                    setStreamError("Autoplay blocked: Click the play button to start listening.");
-                    break;
-                  case "NotSupportedError":
-                    setStreamError("CORS Error: The streaming server doesn't allow requests from this domain.");
-                    break;
-                  case "AbortError":
-                    setStreamError("AbortError: Browser stopped playback. Trying again...");
-                    // Retry after brief delay
-                    setTimeout(() => {
-                      if (isPlayingRef.current && liveStreamRef.current) {
-                        liveStreamRef.current.play().catch(() => {
-                          setStreamError("Cannot reconnect to stream.");
-                        });
-                      }
-                    }, 500);
-                    break;
-                  default:
-                    setStreamError(`Play error: ${err.message || "Cannot play stream. Check URL or broadcaster status."}`);
-                }
-              }
-            });
-        }
+        liveStreamRef.current.play().catch(console.error);
       }
-      
       setIsPlaying(!isPlaying);
       return;
     }
 
-    // Fall back to playlist playback
     if (!audioRef.current || !currentTrack) return;
-    
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      const resolvedUrl = resolveTrackUrl(currentTrack.fileUrl);
-      if (!audioRef.current.src || audioRef.current.src === "" || currentTrackUrlRef.current !== resolvedUrl) {
-        currentTrackUrlRef.current = resolvedUrl;
-        audioRef.current.src = resolvedUrl;
-        audioRef.current.currentTime = radioState.playbackPosition;
-      }
-      audioRef.current.play().catch(err => console.error("Play error:", err));
-    }
-    
+    if (isPlaying) audioRef.current.pause();
+    else audioRef.current.play().catch(console.error);
     setIsPlaying(!isPlaying);
   };
 
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-  };
+  const toggleMute = () => setIsMuted(!isMuted);
 
   const handleSendChat = (text: string) => {
     if (!ws || !usernameEntered) return;
-    
-    ws.send(JSON.stringify({
-      type: "chat_message",
-      username: username,
-      text: text,
-    }));
+    ws.send(JSON.stringify({ type: "chat_message", username, text }));
   };
 
-  const handleSetUsername = () => {
-    if (username.trim()) {
-      initMicAudioContext();
-      setUsernameEntered(true);
-    }
-  };
-
-  const handleChatOpen = () => {
-    setIsChatOpen(true);
-    setUnreadCount(0);
-  };
+  const handleSetUsername = () => { if (username.trim()) { initMicAudioContext(); setUsernameEntered(true); } };
+  const handleChatOpen = () => { setIsChatOpen(true); setUnreadCount(0); };
 
   return (
     <div className="min-h-screen relative overflow-hidden">
       <AnimatedBackground />
       <FloatingParticles />
-      
+
+      <div className="absolute top-4 right-4 z-50 flex gap-2">
+        {!usernameEntered && (
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Your name"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSetUsername()}
+              className="h-9 bg-card/90 backdrop-blur-md"
+            />
+            <Button size="sm" onClick={handleSetUsername}>Enter</Button>
+          </div>
+        )}
+        <ThemeToggle />
+      </div>
+
+      {usernameEntered && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="absolute top-4 left-4 z-50 bg-card/90 backdrop-blur-md"
+          onClick={handleChatOpen}
+        >
+          <MessageCircle className="w-4 h-4 mr-1" />
+          {unreadCount > 0 && <span className="ml-1 bg-destructive text-destructive-foreground rounded-full px-2 text-xs">{unreadCount}</span>}
+        </Button>
+      )}
+
       <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12 relative z-10">
         {!radioState.broadcastEnabled && (
           <div className="fixed inset-0 z-[100] bg-background/60 backdrop-blur-md flex items-center justify-center p-4">
@@ -658,172 +432,82 @@ export default function ListenerPage() {
           transition={{ duration: shouldReduceMotion ? 0 : 0.6 }}
           className="w-full max-w-4xl mx-auto space-y-12"
         >
-              <div className="text-center space-y-8">
-                <motion.div
-                  className="inline-flex items-center justify-center w-32 h-32 rounded-full mb-4 relative"
-                  style={{
-                    background: "linear-gradient(135deg, hsla(195, 100%, 50%, 0.3), hsla(270, 60%, 65%, 0.3))",
-                    backdropFilter: "blur(20px)",
-                    boxShadow: "0 0 60px hsla(195, 100%, 50%, 0.3)",
-                  }}
-                  animate={shouldReduceMotion ? {} : {
-                    boxShadow: [
-                      "0 0 60px hsla(195, 100%, 50%, 0.3)",
-                      "0 0 80px hsla(270, 60%, 65%, 0.4)",
-                      "0 0 60px hsla(195, 100%, 50%, 0.3)",
-                    ],
-                  }}
-                  transition={{ duration: 4, repeat: Infinity }}
-                >
-                  <Radio className="w-16 h-16 text-foreground drop-shadow-lg" />
-                </motion.div>
-                
-                <div className="space-y-3">
-                  <h1 
-                    className="text-6xl font-semibold tracking-tight drop-shadow-lg" 
-                    style={{ color: "rgba(255, 255, 255, 0.95)", textShadow: "0 2px 20px rgba(0, 0, 0, 0.5), 0 0 40px rgba(59, 130, 246, 0.3)" }}
-                    data-testid="text-station-name"
-                  >
-                    RADIO DREAM VOICE
-                  </h1>
-                  <p 
-                    className="text-xl" 
-                    style={{ color: "rgba(255, 255, 255, 0.8)", textShadow: "0 1px 10px rgba(0, 0, 0, 0.5)" }}
-                  >
-                    Your 24/7 streaming radio station
-                  </p>
-                </div>
-
-                <AudioVisualizer isPlaying={isPlaying} shouldReduceMotion={shouldReduceMotion || false} />
-              </div>
-
-              <Card
-                className="p-10 space-y-8 relative overflow-hidden border-white/20 bg-card/80 backdrop-blur-xl shadow-2xl"
-              >
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <LiveIndicator isLive={radioState.isLive} />
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-listener-count">
-                    <Users className="w-4 h-4" />
-                    <span>{radioState.listenerCount} listeners</span>
-                  </div>
-                </div>
-
-                <div className="text-center space-y-1" data-testid="div-current-track">
-                  <h2 className="text-3xl font-semibold">{currentTrack?.title || "No tracks"}</h2>
-                  <p className="text-lg text-muted-foreground">
-                    {currentTrack?.artist || "Unknown Artist"}
-                  </p>
-                </div>
-
-                <div className="flex justify-center py-4">
-                  <Button
-                    size="icon"
-                    className="h-24 w-24 rounded-full shadow-lg"
-                    onClick={togglePlay}
-                    data-testid="button-play-pause"
-                    disabled={!radioState.broadcastEnabled}
-                  >
-                    {isPlaying && radioState.broadcastEnabled ? (
-                      <Pause className="h-10 w-10" />
-                    ) : !radioState.broadcastEnabled ? (
-                      <Lock className="h-10 w-10 text-muted-foreground" />
-                    ) : (
-                      <Play className="h-10 w-10 ml-1" />
-                    )}
-                  </Button>
-                </div>
-
-                  <div className="space-y-6">
-                    {!radioState.broadcastEnabled && (
-                      <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 flex flex-col items-center text-center">
-                        <Lock className="h-8 w-8 text-amber-500 mb-2 opacity-80" />
-                        <p className="text-sm font-medium text-foreground">Station currently offline</p>
-                        <p className="text-xs text-muted-foreground mt-1">Broadcast is locked by admin. Check back later!</p>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Volume</span>
-                        <span className="text-sm text-muted-foreground">{isMuted ? 0 : volume[0]}%</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={toggleMute}
-                          data-testid="button-mute"
-                        >
-                          {isMuted || volume[0] === 0 ? (
-                            <VolumeX className="h-5 w-5" />
-                          ) : (
-                            <Volume2 className="h-5 w-5" />
-                          )}
-                        </Button>
-                        <Slider
-                          value={volume}
-                          onValueChange={setVolume}
-                          max={100}
-                          step={1}
-                          className="flex-1"
-                          disabled={isMuted}
-                          data-testid="slider-volume"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                {streamConfig.isEnabled && streamConfig.streamUrl && (
-                  <div className={`p-3 rounded-lg text-center text-sm flex items-center justify-center gap-2 ${
-                    streamConnected 
-                      ? "bg-green-50 dark:bg-green-950 text-green-900 dark:text-green-100" 
-                      : streamError
-                      ? "bg-red-50 dark:bg-red-950 text-red-900 dark:text-red-100"
-                      : "bg-blue-50 dark:bg-blue-950 text-blue-900 dark:text-blue-100"
-                  }`} data-testid="text-stream-status">
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      streamConnected 
-                        ? "bg-green-600 dark:bg-green-400 animate-pulse" 
-                        : streamError
-                        ? "bg-red-600 dark:bg-red-400"
-                        : "bg-blue-600 dark:bg-blue-400 animate-pulse"
-                    }`} />
-                    <span className="text-left">
-                      {streamConnected 
-                        ? "Live stream connected" 
-                        : streamError 
-                        ? streamError 
-                        : "Connecting to live stream..."}
-                    </span>
-                  </div>
-                )}
-
-                {!isConnected && (
-                  <div className="text-center text-sm text-destructive font-medium">
-                    Connection lost. Trying to reconnect...
-                  </div>
-                )}
-              </Card>
-
-              <div className="text-center">
-                <p className="text-sm text-muted-foreground">
-                  Synchronized playback • All listeners hear the same audio
-                </p>
-              </div>
+          <div className="text-center space-y-8">
+            <motion.div
+              className="inline-flex items-center justify-center w-32 h-32 rounded-full mb-4 relative"
+              style={{
+                background: "linear-gradient(135deg, hsla(195, 100%, 50%, 0.3), hsla(270, 60%, 65%, 0.3))",
+                backdropFilter: "blur(20px)",
+                boxShadow: "0 0 60px hsla(195, 100%, 50%, 0.3)",
+              }}
+              animate={shouldReduceMotion ? {} : {
+                boxShadow: [
+                  "0 0 60px hsla(195, 100%, 50%, 0.3)",
+                  "0 0 80px hsla(270, 60%, 65%, 0.4)",
+                  "0 0 60px hsla(195, 100%, 50%, 0.3)",
+                ],
+              }}
+              transition={{ duration: 4, repeat: Infinity }}
+            >
+              <Radio className="w-16 h-16 text-foreground drop-shadow-lg" />
             </motion.div>
+            
+            <div className="space-y-3">
+              <h1 className="text-6xl font-semibold tracking-tight text-white drop-shadow-lg">RADIO DREAM VOICE</h1>
+              <p className="text-xl text-white/80">Your 24/7 streaming radio station</p>
+            </div>
+            <AudioVisualizer isPlaying={isPlaying} shouldReduceMotion={shouldReduceMotion || false} />
           </div>
-        </>
-      )}
 
-      <ChatWidget
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        onSendMessage={handleSendChat}
-        messages={chatMessages}
-        username={username}
-      />
-      <audio ref={audioRef} crossOrigin="anonymous" />
-      <audio ref={liveStreamRef} data-testid="audio-live-stream" />
+          <Card className="p-10 space-y-8 relative overflow-hidden border-white/20 bg-card/80 backdrop-blur-xl shadow-2xl">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <LiveIndicator isLive={radioState.isLive} />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Users className="w-4 h-4" />
+                <span>{radioState.listenerCount} listeners</span>
+              </div>
+            </div>
+
+            <div className="text-center space-y-1">
+              <h2 className="text-3xl font-semibold">{currentTrack?.title || "No tracks"}</h2>
+              <p className="text-lg text-muted-foreground">{currentTrack?.artist || "Unknown Artist"}</p>
+            </div>
+
+            <div className="flex justify-center py-4">
+              <Button
+                size="icon"
+                className="h-24 w-24 rounded-full shadow-lg"
+                onClick={togglePlay}
+                disabled={!radioState.broadcastEnabled}
+              >
+                {isPlaying && radioState.broadcastEnabled ? (
+                  <Pause className="h-10 w-10" />
+                ) : !radioState.broadcastEnabled ? (
+                  <Lock className="h-10 w-10 text-muted-foreground" />
+                ) : (
+                  <Play className="h-10 w-10 ml-1" />
+                )}
+              </Button>
+            </div>
+
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Volume</span>
+                  <span className="text-sm text-muted-foreground">{isMuted ? 0 : volume[0]}%</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Button variant="ghost" size="icon" onClick={toggleMute}>
+                    {isMuted || volume[0] === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+                  </Button>
+                  <Slider value={volume} onValueChange={setVolume} max={100} step={1} className="flex-1" disabled={isMuted} />
+                </div>
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+      </div>
+      {isChatOpen && <ChatWidget onClose={() => setIsChatOpen(false)} messages={chatMessages} onSendMessage={handleSendChat} />}
     </div>
   );
 }
