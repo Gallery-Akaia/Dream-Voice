@@ -4,6 +4,7 @@ import { Slider } from "@/components/ui/slider";
 import { Card } from "@/components/ui/card";
 import { LiveIndicator } from "@/components/live-indicator";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ChatWidget } from "@/components/chat-widget";
 import { AnimatedBackground } from "@/components/animated-background";
 import { FloatingParticles } from "@/components/floating-particles";
 import { AudioVisualizer } from "@/components/audio-visualizer";
@@ -127,6 +128,54 @@ export default function ListenerPage() {
     playMicrophoneAudioRef.current = playMicrophoneAudio;
   }, [playMicrophoneAudio]);
 
+  const handleStreamCanPlay = useCallback(() => {
+    setStreamConnected(true);
+    setStreamError("");
+  }, []);
+
+  const attemptReconnect = useCallback(() => {
+    reconnectAttemptsRef.current += 1;
+    if (reconnectAttemptsRef.current > 5) {
+      setStreamError("Connection failed after multiple attempts.");
+      return;
+    }
+    
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
+    setStreamError(`Connection lost. Reconnecting in ${Math.round(delay / 1000)}s...`);
+    
+    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+    
+    reconnectTimeoutRef.current = setTimeout(() => {
+      if (liveStreamRef.current && streamConfig.streamUrl) {
+        liveStreamRef.current.src = streamConfig.streamUrl;
+        liveStreamRef.current.play().catch(err => {
+          console.error("Reconnect attempt failed:", err);
+          attemptReconnect();
+        });
+      }
+    }, delay);
+  }, [streamConfig.streamUrl]);
+
+  const handleStreamError = useCallback((e: Event) => {
+    const mediaError = (e.target as HTMLAudioElement).error;
+    console.error("Live stream error:", mediaError);
+    setStreamConnected(false);
+    setIsStreamLoading(false);
+    setStreamError("Stream error. Check broadcaster status.");
+    if (mediaError?.code === 2) attemptReconnect();
+  }, [attemptReconnect]);
+  
+  const handleStreamLoadStart = useCallback(() => {
+    setIsStreamLoading(true);
+    setStreamError("");
+    if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
+    bufferTimeoutRef.current = setTimeout(() => {
+      if (isStreamLoading && !streamConnected) {
+        setStreamError("Buffer stuck. Check stream settings.");
+      }
+    }, 15000);
+  }, [isStreamLoading, streamConnected]);
+
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
@@ -152,73 +201,24 @@ export default function ListenerPage() {
       liveStreamRef.current = new Audio();
       liveStreamRef.current.preload = "none";
       liveStreamRef.current.crossOrigin = "anonymous";
-      
-      const handleStreamCanPlay = () => {
-        setStreamConnected(true);
-        setStreamError("");
-      };
-      
-      const attemptReconnect = () => {
-        reconnectAttemptsRef.current += 1;
-        if (reconnectAttemptsRef.current > 5) {
-          setStreamError("Connection failed after multiple attempts.");
-          return;
-        }
-        
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
-        setStreamError(`Connection lost. Reconnecting in ${Math.round(delay / 1000)}s...`);
-        
-        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (liveStreamRef.current && streamConfig.streamUrl) {
-            liveStreamRef.current.src = streamConfig.streamUrl;
-            liveStreamRef.current.play().catch(err => {
-              console.error("Reconnect attempt failed:", err);
-              attemptReconnect();
-            });
-          }
-        }, delay);
-      };
-
-      const handleStreamError = (e: Event) => {
-        const mediaError = (e.target as HTMLAudioElement).error;
-        console.error("Live stream error:", mediaError);
-        setStreamConnected(false);
-        setIsStreamLoading(false);
-        setStreamError("Stream error. Check broadcaster status.");
-        if (mediaError?.code === 2) attemptReconnect();
-      };
-      
-      const handleStreamLoadStart = () => {
-        setIsStreamLoading(true);
-        setStreamError("");
-        if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
-        bufferTimeoutRef.current = setTimeout(() => {
-          if (isStreamLoading && !streamConnected) {
-            setStreamError("Buffer stuck. Check stream settings.");
-          }
-        }, 15000);
-      };
-
-      liveStreamRef.current.addEventListener("canplay", handleStreamCanPlay);
-      liveStreamRef.current.addEventListener("error", handleStreamError);
-      liveStreamRef.current.addEventListener("loadstart", handleStreamLoadStart);
     }
+    
+    const liveStream = liveStreamRef.current;
+    liveStream.addEventListener("canplay", handleStreamCanPlay);
+    liveStream.addEventListener("error", handleStreamError);
+    liveStream.addEventListener("loadstart", handleStreamLoadStart);
 
     return () => {
-      if (liveStreamRef.current) {
-        liveStreamRef.current.removeEventListener("canplay", handleStreamCanPlay);
-        liveStreamRef.current.removeEventListener("error", handleStreamError);
-        liveStreamRef.current.removeEventListener("loadstart", handleStreamLoadStart);
-      }
+      liveStream.removeEventListener("canplay", handleStreamCanPlay);
+      liveStream.removeEventListener("error", handleStreamError);
+      liveStream.removeEventListener("loadstart", handleStreamLoadStart);
       audio.removeEventListener("error", handleAudioError);
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (bufferTimeoutRef.current) clearTimeout(bufferTimeoutRef.current);
       if (micAudioContextRef.current) micAudioContextRef.current.close();
     };
-  }, []);
+  }, [handleStreamCanPlay, handleStreamError, handleStreamLoadStart]);
 
   useEffect(() => {
     if (!ws) return;
@@ -409,23 +409,6 @@ export default function ListenerPage() {
       )}
 
       <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12 relative z-10">
-        {!radioState.broadcastEnabled && (
-          <div className="fixed inset-0 z-[100] bg-background/60 backdrop-blur-md flex items-center justify-center p-4">
-            <motion.div
-              initial={ { opacity: 0, scale: 0.9 } }
-              animate={ { opacity: 1, scale: 1 } }
-              className="p-8 rounded-3xl bg-card/90 backdrop-blur-xl border border-white/10 shadow-2xl max-w-sm w-full text-center space-y-4"
-            >
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
-                <Lock className="w-8 h-8 text-primary/60" />
-              </div>
-              <h2 className="text-2xl font-bold">Station Offline</h2>
-              <p className="text-muted-foreground">
-                The broadcast is currently paused by the administrator. The station is still here, check back soon!
-              </p>
-            </motion.div>
-          </div>
-        )}
         <motion.div
           initial={shouldReduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

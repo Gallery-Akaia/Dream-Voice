@@ -486,7 +486,7 @@ export default function AdminPlaylist() {
                             data-testid={`button-play-${track.id}`}
                           >
                             {!radioState.broadcastEnabled ? (
-                              <Lock className="h-4 w-4 text-muted-foreground" />
+                              <Lock className="h-4 w-4 text-muted-foreground/50" />
                             ) : (
                               <Play className="h-4 w-4" />
                             )}
