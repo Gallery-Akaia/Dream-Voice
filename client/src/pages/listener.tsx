@@ -8,7 +8,7 @@ import { ChatWidget } from "@/components/chat-widget";
 import { AnimatedBackground } from "@/components/animated-background";
 import { FloatingParticles } from "@/components/floating-particles";
 import { AudioVisualizer } from "@/components/audio-visualizer";
-import { Play, Pause, Volume2, VolumeX, Radio, Users, MessageCircle } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Radio, Users, MessageCircle, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { motion, useReducedMotion } from "framer-motion";
@@ -755,8 +755,9 @@ export default function ListenerPage() {
                     className="h-24 w-24 rounded-full shadow-lg"
                     onClick={togglePlay}
                     data-testid="button-play-pause"
+                    disabled={!radioState.broadcastEnabled}
                   >
-                    {isPlaying ? (
+                    {isPlaying && radioState.broadcastEnabled ? (
                       <Pause className="h-10 w-10" />
                     ) : (
                       <Play className="h-10 w-10 ml-1" />
@@ -764,11 +765,20 @@ export default function ListenerPage() {
                   </Button>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Volume</span>
-                    <span className="text-sm text-muted-foreground">{isMuted ? 0 : volume[0]}%</span>
-                  </div>
+                <div className="space-y-6">
+                  {!radioState.broadcastEnabled && (
+                    <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 flex flex-col items-center text-center">
+                      <Lock className="h-8 w-8 text-amber-500 mb-2 opacity-80" />
+                      <p className="text-sm font-medium text-foreground">Station currently offline</p>
+                      <p className="text-xs text-muted-foreground mt-1">Broadcast is locked by admin. Check back later!</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Volume</span>
+                      <span className="text-sm text-muted-foreground">{isMuted ? 0 : volume[0]}%</span>
+                    </div>
                   <div className="flex items-center gap-4">
                     <Button
                       variant="ghost"
