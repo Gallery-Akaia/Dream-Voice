@@ -101,7 +101,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="opacity-50 pointer-events-none">
+        <SidebarGroup>
           <SidebarGroupLabel className="flex items-center gap-2">
             Admin Functions <Settings2 className="w-3 h-3" />
           </SidebarGroupLabel>
@@ -110,11 +110,14 @@ export function AppSidebar() {
               {adminMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    disabled
-                    data-testid={`${item.testId}-locked`}
+                    asChild
+                    isActive={location === item.url}
+                    data-testid={item.testId}
                   >
-                    <item.icon className="w-4 h-4" />
-                    <span>{item.title}</span>
+                    <Link href={item.url}>
+                      <item.icon className="w-4 h-4" />
+                      <span>{item.title}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

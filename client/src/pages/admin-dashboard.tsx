@@ -23,16 +23,16 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="opacity-50 pointer-events-none">
+      <div>
         <h1 className="text-3xl font-semibold tracking-tight" data-testid="text-dashboard-title">
-          Dashboard <Settings2 className="inline w-6 h-6 ml-2" />
+          Dashboard
         </h1>
         <p className="text-muted-foreground mt-1">
-          Admin Only: Status overview is locked
+          Status overview
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 opacity-50 pointer-events-none grayscale">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
