@@ -276,11 +276,13 @@ export default function ListenerPage() {
       currentTrackUrlRef.current = resolvedUrl;
       audio.src = resolvedUrl;
       audio.currentTime = radioState.playbackPosition;
-      audio.play().catch(error => {
-        console.error("Audio playback error:", error);
-        setIsPlaying(false);
-      });
-    } else if (audio.paused) {
+      if (isPlaying) {
+        audio.play().catch(error => {
+          console.error("Audio playback error:", error);
+          setIsPlaying(false);
+        });
+      }
+    } else if (isPlaying && audio.paused) {
       audio.play().catch(error => {
         console.error("Audio resume error:", error);
         setIsPlaying(false);
