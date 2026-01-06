@@ -599,6 +599,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: "track_changed",
         trackId: trackId,
         position: 0,
+        startOffset: track.startOffset || 0,
+        endOffset: track.endOffset || null,
       });
 
       res.json({ success: true, trackId });

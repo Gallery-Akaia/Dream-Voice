@@ -237,12 +237,13 @@ export default function ListenerPage() {
           const data = JSON.parse(event.data);
           if (data.type === "initial_state" && data.streamConfig) setStreamConfig(data.streamConfig);
           else if (data.type === "stream_config_updated" && data.config) setStreamConfig(data.config);
-          else if (data.type === "playback_sync" || data.type === "track_changed") {
-            serverPositionRef.current = data.position;
-            if (data.type === "track_changed" && audioRef.current) {
-               audioRef.current.currentTime = data.position;
-            }
+        if (data.type === "playback_sync" || data.type === "track_changed") {
+          serverPositionRef.current = data.position;
+          if (data.type === "track_changed" && audioRef.current) {
+            const start = data.startOffset ?? 0;
+            audioRef.current.currentTime = data.position + start;
           }
+        }
           else if (data.type === "chat_message") {
             const newMessage: ChatMessage = {
               id: Math.random().toString(),
@@ -276,6 +277,7 @@ export default function ListenerPage() {
       currentTrackUrlRef.current = resolvedUrl;
       audio.src = resolvedUrl;
       const start = currentTrack.startOffset || 0;
+      // Use the actual current server playback position, starting from the offset
       audio.currentTime = radioState.playbackPosition + start;
       if (isPlaying) {
         audio.play().catch(error => {
