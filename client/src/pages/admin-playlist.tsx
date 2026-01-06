@@ -500,7 +500,7 @@ export default function AdminPlaylist() {
                               const trackDuration = track.endOffset ? track.endOffset - (track.startOffset || 0) : track.duration - (track.startOffset || 0);
                               const isCurrentTrack = adminIsPlaying && audioRef.current?.src.includes(track.fileUrl);
                               
-                              if (isCurrentTrack) {
+                              if (isCurrentTrack && audioRef.current) {
                                 audioRef.current.pause();
                                 setAdminIsPlaying(false);
                               } else {
