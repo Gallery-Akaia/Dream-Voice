@@ -14,6 +14,8 @@ export const audioTracks = pgTable("audio_tracks", {
   title: text("title").notNull(),
   artist: text("artist"),
   duration: integer("duration").notNull(),
+  startOffset: integer("start_offset").default(0),
+  endOffset: integer("end_offset"),
   fileUrl: text("file_url").notNull(),
   order: integer("order").notNull().default(0),
   uploadStatus: text("upload_status").default("ready"),

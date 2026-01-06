@@ -456,12 +456,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/tracks/:id", async (req, res) => {
     try {
-      const { title } = req.body;
-      if (!title) {
-        return res.status(400).json({ error: "Title is required" });
-      }
+      const { title, startOffset, endOffset } = req.body;
+      
+      const updates: Partial<AudioTrack> = {};
+      if (title !== undefined) updates.title = title;
+      if (startOffset !== undefined) updates.startOffset = startOffset;
+      if (endOffset !== undefined) updates.endOffset = endOffset;
 
-      const track = await storage.updateTrack(req.params.id, { title });
+      const track = await storage.updateTrack(req.params.id, updates);
       if (!track) {
         return res.status(404).json({ error: "Track not found" });
       }

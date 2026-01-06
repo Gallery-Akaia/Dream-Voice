@@ -82,7 +82,9 @@ export class MemStorage implements IStorage {
       id,
       artist: insertTrack.artist ?? null,
       uploadStatus: insertTrack.uploadStatus ?? "ready",
-      order: insertTrack.order ?? 0
+      order: insertTrack.order ?? 0,
+      startOffset: insertTrack.startOffset ?? 0,
+      endOffset: insertTrack.endOffset ?? null
     };
     this.tracks.set(id, track);
     return track;

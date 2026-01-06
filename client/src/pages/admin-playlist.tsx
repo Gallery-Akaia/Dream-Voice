@@ -481,7 +481,7 @@ export default function AdminPlaylist() {
                             variant="ghost"
                             onClick={() => {
                               const newTitle = prompt("Enter new title:", track.title);
-                              if (newTitle && newTitle !== track.title) {
+                              if (newTitle !== null && newTitle !== track.title) {
                                 updateTitleMutation.mutate({ id: track.id, title: newTitle });
                               }
                             }}
@@ -489,6 +489,26 @@ export default function AdminPlaylist() {
                             data-testid={`button-edit-${track.id}`}
                           >
                             <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="Set Trim"
+                            onClick={() => {
+                              const start = prompt("Enter start time in seconds:", (track.startOffset || 0).toString());
+                              if (start === null) return;
+                              const end = prompt("Enter end time in seconds (leave empty for full duration):", (track.endOffset || "").toString());
+                              if (end === null) return;
+                              
+                              updateTitleMutation.mutate({ 
+                                id: track.id, 
+                                startOffset: parseInt(start) || 0,
+                                endOffset: end === "" ? null : parseInt(end)
+                              } as any);
+                            }}
+                            data-testid={`button-trim-${track.id}`}
+                          >
+                            <Settings2 className="h-4 w-4" />
                           </Button>
                           <Button
                             size="icon"

@@ -275,7 +275,8 @@ export default function ListenerPage() {
     if (currentTrackUrlRef.current !== resolvedUrl) {
       currentTrackUrlRef.current = resolvedUrl;
       audio.src = resolvedUrl;
-      audio.currentTime = radioState.playbackPosition;
+      const start = currentTrack.startOffset || 0;
+      audio.currentTime = radioState.playbackPosition + start;
       if (isPlaying) {
         audio.play().catch(error => {
           console.error("Audio playback error:", error);
