@@ -293,9 +293,18 @@ export default function ListenerPage() {
     if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
     syncIntervalRef.current = setInterval(() => {
       if (!audio.paused && currentTrack) {
+        const start = currentTrack.startOffset || 0;
+        const end = currentTrack.endOffset || currentTrack.duration;
         const serverPosition = serverPositionRef.current;
-        const drift = Math.abs(serverPosition - audio.currentTime);
-        if (drift > 2.0) audio.currentTime = serverPosition;
+        
+        // Respect end offset
+        if (audio.currentTime >= end) {
+          audio.pause();
+          return;
+        }
+
+        const drift = Math.abs((serverPosition + start) - audio.currentTime);
+        if (drift > 2.0) audio.currentTime = serverPosition + start;
       }
     }, 1000);
 
