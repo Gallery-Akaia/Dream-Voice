@@ -41,8 +41,23 @@ export default function AdminPlaylist() {
   const { radioState } = useWebSocket();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [adminIsPlaying, setAdminIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ffmpegRef = useRef<FFmpeg | null>(null);
+
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.crossOrigin = "anonymous";
+    }
+    const audio = audioRef.current;
+    
+    return () => {
+      audio.pause();
+      audio.src = "";
+    };
+  }, []);
 
   const loadFFmpeg = async () => {
     if (ffmpegRef.current) return ffmpegRef.current;
@@ -159,12 +174,19 @@ export default function AdminPlaylist() {
 
   const playTrackMutation = useMutation({
     mutationFn: async (trackId: string) => {
+      const track = tracks.find(t => t.id === trackId);
+      if (track && audioRef.current) {
+        audioRef.current.src = track.fileUrl;
+        audioRef.current.currentTime = track.startOffset || 0;
+        audioRef.current.play().catch(console.error);
+        setAdminIsPlaying(true);
+      }
       await apiRequest("POST", "/api/radio/play-track", { trackId });
     },
     onSuccess: () => {
       toast({
         title: "Now playing",
-        description: "Track is now playing for all listeners",
+        description: "Track is now playing for you and all listeners",
       });
     },
     onError: () => {
@@ -466,12 +488,21 @@ export default function AdminPlaylist() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => playTrackMutation.mutate(track.id)}
+                            onClick={() => {
+                              if (adminIsPlaying && audioRef.current?.src.includes(track.fileUrl)) {
+                                audioRef.current.pause();
+                                setAdminIsPlaying(false);
+                              } else {
+                                playTrackMutation.mutate(track.id);
+                              }
+                            }}
                             disabled={track.uploadStatus !== "ready" || playTrackMutation.isPending || !radioState.broadcastEnabled}
                             data-testid={`button-play-${track.id}`}
                           >
                             {!radioState.broadcastEnabled ? (
                               <Lock className="h-4 w-4 text-muted-foreground/50" />
+                            ) : adminIsPlaying && audioRef.current?.src.includes(track.fileUrl) ? (
+                              <Pause className="h-4 w-4 text-primary" />
                             ) : (
                               <Play className="h-4 w-4" />
                             )}

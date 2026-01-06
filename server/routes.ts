@@ -458,7 +458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { title, startOffset, endOffset } = req.body;
       
-      const updates: Partial<AudioTrack> = {};
+      const updates: any = {};
       if (title !== undefined) updates.title = title;
       if (startOffset !== undefined) updates.startOffset = startOffset;
       if (endOffset !== undefined) updates.endOffset = endOffset;

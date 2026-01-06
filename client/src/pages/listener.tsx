@@ -508,7 +508,14 @@ export default function ListenerPage() {
           </Card>
         </motion.div>
       </div>
-      {isChatOpen && <ChatWidget onClose={() => setIsChatOpen(false)} messages={chatMessages} onSendMessage={handleSendChat} />}
+      {isChatOpen && (
+        <ChatWidget 
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)} 
+          messages={chatMessages} 
+          onSendMessage={handleSendChat} 
+        />
+      )}
     </div>
   );
 }
