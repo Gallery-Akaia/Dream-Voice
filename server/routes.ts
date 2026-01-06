@@ -468,12 +468,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Track not found" });
       }
 
+      const isTrimUpdate = startOffset !== undefined || endOffset !== undefined;
+
       broadcastToClients({
         type: "playlist_updated",
         tracks: await storage.getAllTracks(),
       });
 
-      res.json(track);
+      res.json({ ...track, isTrimUpdate });
     } catch (error) {
       res.status(500).json({ error: "Failed to update track" });
     }
@@ -773,6 +775,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: "track_changed",
           trackId: tracks[0].id,
           position: 0,
+          startOffset: tracks[0].startOffset || 0,
+          endOffset: tracks[0].endOffset || null,
         });
         return;
       }
@@ -788,15 +792,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             type: "track_changed",
             trackId: tracks[0].id,
             position: 0,
+            startOffset: tracks[0].startOffset || 0,
+            endOffset: tracks[0].endOffset || null,
           });
         }
         return;
       }
 
       const currentTrack = tracks[currentTrackIndex];
+      const start = currentTrack.startOffset || 0;
+      const end = currentTrack.endOffset || currentTrack.duration;
+      const effectiveDuration = end - start;
       const newPosition = state.playbackPosition + 1;
 
-      if (newPosition >= currentTrack.duration) {
+      if (newPosition >= effectiveDuration) {
         const nextTrackIndex = (currentTrackIndex + 1) % tracks.length;
         const nextTrack = tracks[nextTrackIndex];
         
@@ -809,6 +818,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: "track_changed",
           trackId: nextTrack.id,
           position: 0,
+          startOffset: nextTrack.startOffset || 0,
+          endOffset: nextTrack.endOffset || null,
         });
       } else {
         await storage.updateRadioState({
@@ -819,6 +830,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: "playback_sync",
           trackId: state.currentTrackId,
           position: newPosition,
+          startOffset: start,
         });
       }
     }, 1000);

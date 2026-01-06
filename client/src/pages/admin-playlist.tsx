@@ -249,20 +249,21 @@ export default function AdminPlaylist() {
   });
 
   const updateTitleMutation = useMutation({
-    mutationFn: async ({ id, title }: { id: string; title: string }) => {
-      await apiRequest("PATCH", `/api/tracks/${id}`, { title });
+    mutationFn: async ({ id, title, startOffset, endOffset }: { id: string; title?: string; startOffset?: number; endOffset?: number | null }) => {
+      const res = await apiRequest("PATCH", `/api/tracks/${id}`, { title, startOffset, endOffset });
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tracks"] });
       toast({
-        title: "Track updated",
-        description: "Track title has been changed",
+        title: data.isTrimUpdate ? "Track trim updated" : "Track title updated",
+        description: data.isTrimUpdate ? "Playback start/end times have been adjusted" : "Track title has been changed",
       });
     },
     onError: () => {
       toast({
         title: "Update failed",
-        description: "Failed to update track title",
+        description: "Failed to update track",
         variant: "destructive",
       });
     },
@@ -496,7 +497,10 @@ export default function AdminPlaylist() {
                             size="icon"
                             variant="ghost"
                             onClick={() => {
-                              if (adminIsPlaying && audioRef.current?.src.includes(track.fileUrl)) {
+                              const trackDuration = track.endOffset ? track.endOffset - (track.startOffset || 0) : track.duration - (track.startOffset || 0);
+                              const isCurrentTrack = adminIsPlaying && audioRef.current?.src.includes(track.fileUrl);
+                              
+                              if (isCurrentTrack) {
                                 audioRef.current.pause();
                                 setAdminIsPlaying(false);
                               } else {
