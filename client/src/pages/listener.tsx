@@ -237,13 +237,13 @@ export default function ListenerPage() {
           const data = JSON.parse(event.data);
           if (data.type === "initial_state" && data.streamConfig) setStreamConfig(data.streamConfig);
           else if (data.type === "stream_config_updated" && data.config) setStreamConfig(data.config);
-        if (data.type === "playback_sync" || data.type === "track_changed") {
-          serverPositionRef.current = data.position;
-          if (data.type === "track_changed" && audioRef.current) {
-            const start = data.startOffset ?? 0;
-            audioRef.current.currentTime = data.position + start;
+          else if (data.type === "playback_sync" || data.type === "track_changed") {
+            serverPositionRef.current = data.position;
+            if (data.type === "track_changed" && audioRef.current) {
+              const start = data.startOffset ?? 0;
+              audioRef.current.currentTime = data.position + start;
+            }
           }
-        }
           else if (data.type === "chat_message") {
             const newMessage: ChatMessage = {
               id: Math.random().toString(),

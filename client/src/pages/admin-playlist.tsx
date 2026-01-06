@@ -535,13 +535,13 @@ export default function AdminPlaylist() {
                             onClick={() => {
                               const start = prompt("Enter start time in seconds:", (track.startOffset || 0).toString());
                               if (start === null) return;
-                              const end = prompt("Enter end time in seconds (leave empty for full duration):", (track.endOffset || "").toString());
-                              if (end === null) return;
+                              const endInput = prompt("Enter end time in seconds (leave empty for full duration):", (track.endOffset || "").toString());
+                              if (endInput === null) return;
                               
                               updateTitleMutation.mutate({ 
                                 id: track.id, 
                                 startOffset: parseInt(start) || 0,
-                                endOffset: end === "" ? null : parseInt(end)
+                                endOffset: endInput === "" ? null : parseInt(endInput)
                               } as any);
                             }}
                             data-testid={`button-trim-${track.id}`}

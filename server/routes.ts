@@ -460,8 +460,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const updates: any = {};
       if (title !== undefined) updates.title = title;
-      if (startOffset !== undefined) updates.startOffset = startOffset;
-      if (endOffset !== undefined) updates.endOffset = endOffset;
+      if (startOffset !== undefined) updates.startOffset = Number(startOffset);
+      if (endOffset !== undefined) updates.endOffset = endOffset === "" || endOffset === null ? null : Number(endOffset);
 
       const track = await storage.updateTrack(req.params.id, updates);
       if (!track) {
