@@ -177,9 +177,16 @@ export default function AdminPlaylist() {
       const track = tracks.find(t => t.id === trackId);
       if (track && audioRef.current) {
         audioRef.current.src = track.fileUrl;
-        audioRef.current.currentTime = track.startOffset || 0;
-        audioRef.current.play().catch(console.error);
-        setAdminIsPlaying(true);
+        const start = track.startOffset || 0;
+        
+        const playLocal = () => {
+          audioRef.current!.currentTime = start;
+          audioRef.current!.play().catch(console.error);
+          setAdminIsPlaying(true);
+        };
+
+        audioRef.current.onloadedmetadata = playLocal;
+        playLocal();
       }
       await apiRequest("POST", "/api/radio/play-track", { trackId });
     },

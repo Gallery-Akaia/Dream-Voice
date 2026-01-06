@@ -279,12 +279,24 @@ export default function ListenerPage() {
       const start = currentTrack.startOffset || 0;
       // Use the actual current server playback position, starting from the offset
       audio.currentTime = radioState.playbackPosition + start;
-      if (isPlaying) {
-        audio.play().catch(error => {
-          console.error("Audio playback error:", error);
-          setIsPlaying(false);
-        });
-      }
+      
+      const playAudio = () => {
+        if (isPlaying) {
+          audio.play().catch(error => {
+            console.error("Audio playback error:", error);
+            setIsPlaying(false);
+          });
+        }
+      };
+
+      // Ensure the src is actually loaded before setting currentTime again
+      audio.onloadedmetadata = () => {
+        audio.currentTime = radioState.playbackPosition + start;
+        playAudio();
+      };
+      
+      // Also try immediately
+      playAudio();
     } else if (isPlaying && audio.paused) {
       audio.play().catch(error => {
         console.error("Audio resume error:", error);
