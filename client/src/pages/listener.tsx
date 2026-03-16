@@ -343,7 +343,11 @@ export default function ListenerPage() {
     const container = casterContainerRef.current;
     if (!container) return;
 
-    container.innerHTML = "";
+    const placeholder = document.createElement("p");
+    placeholder.id = "caster-placeholder";
+    placeholder.textContent = "Loading player…";
+    placeholder.style.cssText = "color:rgba(255,255,255,0.4);font-size:14px;text-align:center;padding:16px;";
+    container.appendChild(placeholder);
 
     const embedDiv = document.createElement("div");
     embedDiv.setAttribute("data-type", "podcastsPlayer");
@@ -356,21 +360,19 @@ export default function ListenerPage() {
     embedDiv.style.width = "100%";
     container.appendChild(embedDiv);
 
-    const SCRIPT_ID = "caster-embed-script";
-    const existingScript = document.getElementById(SCRIPT_ID);
-
-    if (existingScript) {
-      existingScript.remove();
-    }
-
     const script = document.createElement("script");
-    script.id = SCRIPT_ID;
-    script.src = "https://cdn.cloud.caster.fm/widgets/embed.js?t=" + Date.now();
+    script.src = "//cdn.cloud.caster.fm//widgets/embed.js";
     script.async = true;
+    script.onload = () => {
+      const ph = document.getElementById("caster-placeholder");
+      if (ph) ph.remove();
+    };
     document.body.appendChild(script);
 
     return () => {
-      container.innerHTML = "";
+      if (container.contains(embedDiv)) container.removeChild(embedDiv);
+      if (container.contains(placeholder)) container.removeChild(placeholder);
+      if (document.body.contains(script)) document.body.removeChild(script);
     };
   }, []);
 
