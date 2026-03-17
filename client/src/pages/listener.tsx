@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AnimatedBackground } from "@/components/animated-background";
 import { FloatingParticles } from "@/components/floating-particles";
@@ -6,39 +6,32 @@ import { Phone } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import logoImg from "@assets/IMG_3672_1772631960491.png";
 
+declare global {
+  interface Window {
+    casterFM?: { init?: () => void; renderAll?: () => void };
+    CasterFM?: { init?: () => void; renderAll?: () => void };
+  }
+}
+
 export default function ListenerPage() {
   const shouldReduceMotion = useReducedMotion();
-  const casterContainerRef = useRef<HTMLDivElement | null>(null);
-  const [playerReady, setPlayerReady] = useState(false);
+  const playerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const container = casterContainerRef.current;
-    if (!container) return;
+    const tryRender = () => {
+      const obj = (window as any).casterFM || (window as any).CasterFM;
+      if (obj && typeof obj.renderAll === "function") {
+        obj.renderAll();
+      } else if (obj && typeof obj.init === "function") {
+        obj.init();
+      }
+    };
 
-    const existingScript = document.querySelector('script[src*="caster.fm"]');
-    if (existingScript) existingScript.remove();
-
-    const embedDiv = document.createElement("div");
-    embedDiv.setAttribute("data-type", "newStreamPlayer");
-    embedDiv.setAttribute("data-publicToken", "e86556b5-4d8a-4e2b-9289-9c7775e4f452");
-    embedDiv.setAttribute("data-theme", "dark");
-    embedDiv.setAttribute("data-color", "e81e4d");
-    embedDiv.setAttribute("data-channelId", "");
-    embedDiv.setAttribute("data-rendered", "false");
-    embedDiv.className = "cstrEmbed";
-    embedDiv.style.width = "100%";
-    container.appendChild(embedDiv);
-
-    const script = document.createElement("script");
-    script.src = "//cdn.cloud.caster.fm//widgets/embed.js";
-    script.async = true;
-    script.onload = () => setPlayerReady(true);
-    document.body.appendChild(script);
-
+    const timer = setTimeout(tryRender, 500);
+    const timer2 = setTimeout(tryRender, 1500);
     return () => {
-      if (container.contains(embedDiv)) container.removeChild(embedDiv);
-      const s = document.querySelector('script[src*="caster.fm"]');
-      if (s) s.remove();
+      clearTimeout(timer);
+      clearTimeout(timer2);
     };
   }, []);
 
@@ -99,11 +92,20 @@ export default function ListenerPage() {
             </div>
           </div>
 
-          <div className="w-full rounded-xl overflow-hidden border border-white/10 bg-black/30 backdrop-blur-xl shadow-2xl min-h-[220px] flex items-center justify-center">
-            {!playerReady && (
-              <p className="text-white/40 text-sm">Loading player…</p>
-            )}
-            <div ref={casterContainerRef} className="w-full" />
+          <div
+            ref={playerRef}
+            className="w-full rounded-xl overflow-hidden border border-white/10 shadow-2xl"
+          >
+            <div
+              data-type="newStreamPlayer"
+              data-publicToken="e86556b5-4d8a-4e2b-9289-9c7775e4f452"
+              data-theme="dark"
+              data-color="e81e4d"
+              data-channelId=""
+              data-rendered="false"
+              className="cstrEmbed"
+              style={{ width: "100%" }}
+            />
           </div>
         </motion.div>
       </div>
