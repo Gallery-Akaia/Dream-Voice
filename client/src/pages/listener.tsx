@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AnimatedBackground } from "@/components/animated-background";
 import { FloatingParticles } from "@/components/floating-particles";
@@ -6,32 +6,23 @@ import { Phone } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import logoImg from "@assets/IMG_3672_1772631960491.png";
 
-declare global {
-  interface Window {
-    casterFM?: { init?: () => void; renderAll?: () => void };
-    CasterFM?: { init?: () => void; renderAll?: () => void };
-  }
-}
-
 export default function ListenerPage() {
   const shouldReduceMotion = useReducedMotion();
-  const playerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const tryRender = () => {
-      const obj = (window as any).casterFM || (window as any).CasterFM;
-      if (obj && typeof obj.renderAll === "function") {
-        obj.renderAll();
-      } else if (obj && typeof obj.init === "function") {
-        obj.init();
-      }
-    };
+    // Remove any stale script so we always start fresh
+    const stale = document.querySelector('script[src*="caster.fm"]');
+    if (stale) stale.remove();
 
-    const timer = setTimeout(tryRender, 500);
-    const timer2 = setTimeout(tryRender, 1500);
+    // Inject script AFTER the cstrEmbed div is in the DOM
+    const script = document.createElement("script");
+    script.src = "https://cdn.cloud.caster.fm/widgets/embed.js";
+    script.async = true;
+    document.body.appendChild(script);
+
     return () => {
-      clearTimeout(timer);
-      clearTimeout(timer2);
+      const s = document.querySelector('script[src*="caster.fm"]');
+      if (s) s.remove();
     };
   }, []);
 
@@ -92,10 +83,8 @@ export default function ListenerPage() {
             </div>
           </div>
 
-          <div
-            ref={playerRef}
-            className="w-full rounded-xl overflow-hidden border border-white/10 shadow-2xl"
-          >
+          {/* Caster.fm Player — div must be in DOM before the script loads */}
+          <div className="w-full rounded-xl overflow-hidden border border-white/10 shadow-2xl">
             <div
               data-type="newStreamPlayer"
               data-publicToken="e86556b5-4d8a-4e2b-9289-9c7775e4f452"
@@ -104,7 +93,7 @@ export default function ListenerPage() {
               data-channelId=""
               data-rendered="false"
               className="cstrEmbed"
-              style={{ width: "100%" }}
+              style={{ width: "100%", display: "block" }}
             />
           </div>
         </motion.div>
