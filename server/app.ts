@@ -112,23 +112,29 @@ export default async function runApp(
   await setup(app, server);
 
   const port = parseInt(process.env.PORT || '5000', 10);
+
+  // Graceful shutdown — ensures port is released before process exits
+  const shutdown = () => {
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 3000);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+
+  const startServer = () => {
+    server.listen({ port, host: "0.0.0.0" }, () => {
+      log(`serving on port ${port}`);
+    });
+  };
+
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
-      log(`Port ${port} is in use, retrying in 2s…`);
-      setTimeout(() => {
-        server.close();
-        server.listen({ port, host: "0.0.0.0" }, () => {
-          log(`serving on port ${port}`);
-        });
-      }, 2000);
+      log(`Port ${port} busy — retrying in 1s…`);
+      setTimeout(startServer, 1000);
     } else {
       throw err;
     }
   });
-  server.listen({
-    port,
-    host: "0.0.0.0",
-  }, () => {
-    log(`serving on port ${port}`);
-  });
+
+  startServer();
 }
