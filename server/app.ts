@@ -55,8 +55,6 @@ declare module 'http' {
   }
 }
 app.use((req, res, next) => {
-  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-  res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   next();
 });
@@ -114,6 +112,19 @@ export default async function runApp(
   await setup(app, server);
 
   const port = parseInt(process.env.PORT || '5000', 10);
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      log(`Port ${port} is in use, retrying in 2s…`);
+      setTimeout(() => {
+        server.close();
+        server.listen({ port, host: "0.0.0.0" }, () => {
+          log(`serving on port ${port}`);
+        });
+      }, 2000);
+    } else {
+      throw err;
+    }
+  });
   server.listen({
     port,
     host: "0.0.0.0",
