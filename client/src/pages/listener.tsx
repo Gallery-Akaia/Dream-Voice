@@ -94,7 +94,11 @@ export default function ListenerPage() {
               data-rendered="false"
               className="cstrEmbed"
               style={{ width: "100%", display: "block" }}
-            />
+            >
+              <a href="https://www.caster.fm">Shoutcast Hosting</a>
+              <a href="https://www.caster.fm">Stream Hosting</a>
+              <a href="https://www.caster.fm">Radio Server Hosting</a>
+            </div>
           </div>
         </motion.div>
       </div>
